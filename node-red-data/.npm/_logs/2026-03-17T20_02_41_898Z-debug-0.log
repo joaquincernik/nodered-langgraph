@@ -1,0 +1,64 @@
+0 verbose cli /usr/local/bin/node /usr/local/bin/npm
+1 info using npm@10.8.2
+2 info using node@v20.20.0
+3 silly config load:file:/usr/local/lib/node_modules/npm/npmrc
+4 silly config load:file:/data/.npmrc
+5 silly config load:file:/usr/src/node-red/.npmrc
+6 silly config load:file:/usr/local/etc/npmrc
+7 verbose title npm remove node-red-node-mysql
+8 verbose argv "remove" "--no-audit" "--no-update-notifier" "--no-fund" "--save" "node-red-node-mysql"
+9 verbose logfile logs-max:10 dir:/data/.npm/_logs/2026-03-17T20_02_41_898Z-
+10 verbose logfile /data/.npm/_logs/2026-03-17T20_02_41_898Z-debug-0.log
+11 silly packumentCache heap:4345298944 maxSize:1086324736 maxEntrySize:543162368
+12 silly logfile done cleaning log files
+13 silly idealTree buildDeps
+14 silly reify mark retired [ '/data/node_modules/@types/node' ]
+15 silly reify mark retired [ '/data/node_modules/aws-ssl-profiles' ]
+16 silly reify mark retired [ '/data/node_modules/denque' ]
+17 silly reify mark retired [ '/data/node_modules/generate-function' ]
+18 silly reify mark retired [ '/data/node_modules/iconv-lite' ]
+19 silly reify mark retired [ '/data/node_modules/is-property' ]
+20 silly reify mark retired [ '/data/node_modules/long' ]
+21 silly reify mark retired [ '/data/node_modules/lru.min' ]
+22 silly reify mark retired [ '/data/node_modules/mysql2' ]
+23 silly reify mark retired [ '/data/node_modules/named-placeholders' ]
+24 silly reify mark retired [ '/data/node_modules/node-red-node-mysql' ]
+25 silly reify mark retired [ '/data/node_modules/safer-buffer' ]
+26 silly reify mark retired [ '/data/node_modules/sql-escaper' ]
+27 silly reify mark retired [ '/data/node_modules/undici-types' ]
+28 silly reify moves {
+28 silly reify   '/data/node_modules/@types/node': '/data/node_modules/@types/.node-hhfaj4BM',
+28 silly reify   '/data/node_modules/aws-ssl-profiles': '/data/node_modules/.aws-ssl-profiles-feJbnAew',
+28 silly reify   '/data/node_modules/denque': '/data/node_modules/.denque-NvQCv7Lr',
+28 silly reify   '/data/node_modules/generate-function': '/data/node_modules/.generate-function-ifIdMKVs',
+28 silly reify   '/data/node_modules/iconv-lite': '/data/node_modules/.iconv-lite-MMpGM8zk',
+28 silly reify   '/data/node_modules/is-property': '/data/node_modules/.is-property-9f3EltRx',
+28 silly reify   '/data/node_modules/long': '/data/node_modules/.long-OYGEJ42K',
+28 silly reify   '/data/node_modules/lru.min': '/data/node_modules/.lru.min-vBBzo4fL',
+28 silly reify   '/data/node_modules/mysql2': '/data/node_modules/.mysql2-4fsfpztf',
+28 silly reify   '/data/node_modules/named-placeholders': '/data/node_modules/.named-placeholders-wKv9vt1y',
+28 silly reify   '/data/node_modules/node-red-node-mysql': '/data/node_modules/.node-red-node-mysql-FZcFGK6Z',
+28 silly reify   '/data/node_modules/safer-buffer': '/data/node_modules/.safer-buffer-aAdgwKtH',
+28 silly reify   '/data/node_modules/sql-escaper': '/data/node_modules/.sql-escaper-ZS6ai7U1',
+28 silly reify   '/data/node_modules/undici-types': '/data/node_modules/.undici-types-N38lcTrn'
+28 silly reify }
+29 silly REMOVE node_modules/undici-types
+30 silly REMOVE node_modules/sql-escaper
+31 silly REMOVE node_modules/safer-buffer
+32 silly REMOVE node_modules/node-red-node-mysql
+33 silly REMOVE node_modules/named-placeholders
+34 silly REMOVE node_modules/mysql2
+35 silly REMOVE node_modules/lru.min
+36 silly REMOVE node_modules/long
+37 silly REMOVE node_modules/is-property
+38 silly REMOVE node_modules/iconv-lite
+39 silly REMOVE node_modules/generate-function
+40 silly REMOVE node_modules/denque
+41 silly REMOVE node_modules/aws-ssl-profiles
+42 silly REMOVE node_modules/@types/node
+43 verbose cwd /data
+44 verbose os Linux 5.15.0-60-generic
+45 verbose node v20.20.0
+46 verbose npm  v10.8.2
+47 verbose exit 0
+48 info ok

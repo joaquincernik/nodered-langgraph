@@ -1,0 +1,29 @@
+0 verbose cli /usr/local/bin/node /usr/local/bin/npm
+1 info using npm@10.8.2
+2 info using node@v20.20.0
+3 silly config load:file:/usr/local/lib/node_modules/npm/npmrc
+4 silly config load:file:/data/.npmrc
+5 silly config load:file:/usr/src/node-red/.npmrc
+6 silly config load:file:/usr/local/etc/npmrc
+7 verbose title npm install node-red-contrib-web-worldmap@5.6.2
+8 verbose argv "install" "--no-audit" "--no-update-notifier" "--no-fund" "--save" "--save-prefix" "~" "--omit" "dev" "--engine-strict" "node-red-contrib-web-worldmap@5.6.2"
+9 verbose logfile logs-max:10 dir:/data/.npm/_logs/2026-04-14T21_30_52_554Z-
+10 verbose logfile /data/.npm/_logs/2026-04-14T21_30_52_554Z-debug-0.log
+11 silly packumentCache heap:4345298944 maxSize:1086324736 maxEntrySize:543162368
+12 silly logfile done cleaning log files
+13 silly idealTree buildDeps
+14 silly fetch manifest node-red-contrib-web-worldmap@5.6.2
+15 silly packumentCache full:https://registry.npmjs.org/node-red-contrib-web-worldmap cache-miss
+16 http fetch GET 200 https://registry.npmjs.org/node-red-contrib-web-worldmap 1671ms (cache miss)
+17 silly packumentCache full:https://registry.npmjs.org/node-red-contrib-web-worldmap set size:undefined disposed:false
+18 silly placeDep ROOT node-red-contrib-web-worldmap@5.6.2 OK for: node-red-project@0.0.1 want: 5.6.2
+19 silly reify moves {}
+20 silly tarball no local data for node-red-contrib-web-worldmap@https://registry.npmjs.org/node-red-contrib-web-worldmap/-/node-red-contrib-web-worldmap-5.6.2.tgz. Extracting by manifest.
+21 http fetch GET 200 https://registry.npmjs.org/node-red-contrib-web-worldmap/-/node-red-contrib-web-worldmap-5.6.2.tgz 2482ms (cache miss)
+22 silly ADD node_modules/node-red-contrib-web-worldmap
+23 verbose cwd /data
+24 verbose os Linux 5.15.0-60-generic
+25 verbose node v20.20.0
+26 verbose npm  v10.8.2
+27 verbose exit 0
+28 info ok

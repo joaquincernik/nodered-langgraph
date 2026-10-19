@@ -1,0 +1,15 @@
+services:
+  
+  nodered_soa2026:
+    container_name: nodered_pfs2026
+    image: nodered/node-red:4.1.7
+    privileged: true
+    # El usuario por defecto de la imagen es node-red, pero 
+    # necesitamos entrar como root para instalar paquetes.
+    user: root 
+    environment:
+      - TZ=America/Argentina/Buenos_Aires
+    ports:
+      - "1880:1880"
+    volumes:
+      - ./node-red-data:/data
