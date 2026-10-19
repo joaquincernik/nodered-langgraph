@@ -110,7 +110,7 @@
         "id": "bb5efee175413fed",
         "type": "tab",
         "label": "Telegram notas",
-        "disabled": false,
+        "disabled": true,
         "info": "",
         "env": []
     },
