@@ -9,7 +9,10 @@ services:
     user: root 
     environment:
       - TZ=America/Argentina/Buenos_Aires
+    env_file:
+      - .env
     ports:
       - "1880:1880"
     volumes:
       - ./node-red-data:/data
+      - ./node-red-contrib-langgraph:/data/node_modules/node-red-contrib-langgraph

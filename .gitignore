@@ -1,2 +1,7 @@
 **/node_modules/
 **/.npm
+.env
+# Datos de runtime y credenciales de Node-RED
+node-red-data/flows_cred.json
+node-red-data/*.backup
+node-red-data/.config.*

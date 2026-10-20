@@ -291,5 +291,93 @@
         "useselfsignedcertificate": false,
         "sslterminated": false,
         "verboselogging": false
+    },
+    {
+        "id": "5f3b72fd0e39f12f",
+        "type": "langgraph-start",
+        "z": "6e0bbe9565d69b26",
+        "name": "",
+        "maxIterations": 5,
+        "x": 360,
+        "y": 180,
+        "wires": [
+            [
+                "641e45dc02bc378d"
+            ]
+        ]
+    },
+    {
+        "id": "641e45dc02bc378d",
+        "type": "langgraph-llm",
+        "z": "6e0bbe9565d69b26",
+        "name": "",
+        "model": "groq:openai/gpt-oss-120b",
+        "temperature": 0.7,
+        "baseUrl": "",
+        "x": 560,
+        "y": 160,
+        "wires": [
+            [
+                "cd93556e73103136"
+            ]
+        ]
+    },
+    {
+        "id": "cd93556e73103136",
+        "type": "langgraph-end",
+        "z": "6e0bbe9565d69b26",
+        "name": "",
+        "x": 760,
+        "y": 160,
+        "wires": [
+            [
+                "4359b4ccf5f22285"
+            ]
+        ]
+    },
+    {
+        "id": "105e148aa469c387",
+        "type": "inject",
+        "z": "6e0bbe9565d69b26",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "hola chat como estas",
+        "payloadType": "str",
+        "x": 160,
+        "y": 160,
+        "wires": [
+            [
+                "5f3b72fd0e39f12f"
+            ]
+        ]
+    },
+    {
+        "id": "4359b4ccf5f22285",
+        "type": "debug",
+        "z": "6e0bbe9565d69b26",
+        "name": "debug 1",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 940,
+        "y": 160,
+        "wires": []
     }
 ]

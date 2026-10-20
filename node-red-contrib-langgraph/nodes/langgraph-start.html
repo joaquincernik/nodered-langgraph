@@ -1,0 +1,57 @@
+<script type="text/html" data-template-name="langgraph-start">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Nombre</label>
+        <input type="text" id="node-input-name" placeholder="Nombre del nodo">
+    </div>
+    <hr>
+    <div class="form-row">
+        <label for="node-input-maxIterations"><i class="fa fa-repeat"></i> Max. iteraciones</label>
+        <input type="text" id="node-input-maxIterations" placeholder="5">
+    </div>
+    <div class="form-tips">
+        Inicializa <code>msg.state</code> (contrato del grafo) con el
+        contenido de <code>msg.payload</code> como primer mensaje del usuario.
+    </div>
+</script>
+
+<script type="text/html" data-help-name="langgraph-start">
+    <p>
+        Punto de entrada del grafo inspirado en <code>START</code> de LangGraph.
+    </p>
+    <p>
+        Recibe el input inicial (<code>msg.payload</code>) y crea/inicializa el
+        objeto <code>msg.state</code> con el contrato definido en el proyecto:
+        <code>messages</code>, <code>next_node</code>, <code>status</code>,
+        <code>iterations</code> y <code>max_iterations</code>.
+    </p>
+    <p>
+        El primer mensaje se serializa con el formato estándar de LangChain
+        (<code>{ type: "human", data: { content } }</code>) para poder ser
+        restaurado por los nodos siguientes.
+    </p>
+    <h3>Configuración</h3>
+    <ul>
+        <li><b>Max. iteraciones</b> — límite de ciclos del grafo (default: 5).</li>
+    </ul>
+</script>
+
+<script>
+    RED.nodes.registerType("langgraph-start", {
+        category: "langgraph",
+        color: "#37d593",
+        defaults: {
+            name: { value: "" },
+            maxIterations: { value: 5, validate: RED.validators.number(true) }
+        },
+        inputs: 1,
+        outputs: 1,
+        icon: "font-awesome/fa-play",
+        paletteLabel: "langgraph start",
+        label: function () {
+            return this.name || "langgraph-start";
+        },
+        labelStyle: function () {
+            return this.name ? "node_label_italic" : "";
+        }
+    });
+</script>
