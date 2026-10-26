@@ -52,3 +52,30 @@ README.md con instalación, arquitectura de msg.state y captura del flujo.
   }
 }
 ```
+
+## Puesta en marcha
+
+Requisitos: Docker y Docker Compose.
+
+```bash
+cp .env.example .env          # completar GROQ_API_KEY
+docker compose up -d          # Node-RED en http://localhost:1880
+```
+
+El flujo de ejemplo ya está desplegado en `node-red-data/flows.json`. Para probarlo, abrir el editor y hacer clic en el botón del nodo `inject`; la respuesta aparece en la pestaña **Debug**.
+
+### Estructura del entorno
+
+- `node-red-data/` es el **userDir** de la instancia (montado como `/data`): ahí viven los flows, las credenciales, `settings.js` y las dependencias. **No copiar esta carpeta desde otro proyecto**: arrastra nodos de configuración y dependencias ajenas que impiden que Node-RED arranque.
+- `node-red-contrib-langgraph/` es el paquete de nodos, montado en `/data/node_modules/node-red-contrib-langgraph` para desarrollo.
+- `node-red-data/package.json` se mantiene **sin dependencias**: los nodos del paquete se montan aparte y los nodos core ya vienen en la imagen.
+
+### Ciclo de desarrollo
+
+```bash
+# Solo si cambian las dependencias del paquete
+docker exec -w /data/node_modules/node-red-contrib-langgraph nodered_pfs2026 npm ci
+
+# Node-RED no recarga nodos en caliente: reiniciar tras cambiar un .js
+docker compose restart
+```
