@@ -11,32 +11,22 @@ module.exports = function (RED) {
         mapStoredMessagesToChatMessages
     } = require("@langchain/core/messages");
 
-    // "groq:openai/gpt-oss-120b" -> "groq"; sin prefijo -> "openai"
-    function providerOf(modelString) {
-        const m = /^([a-z0-9]+):/i.exec(modelString);
-        return m ? m[1].toLowerCase() : "openai";
-    }
-
     function LangGraphLLMNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
 
-        node.modelString = (config.model || "").trim() || "groq:openai/gpt-oss-120b";
+        node.modelString = (config.model || "").trim();
         node.temperature = Number(config.temperature);
         if (Number.isNaN(node.temperature)) {
             node.temperature = 0.7;
         }
-        // baseURL opcional: solo aplica a proveedores compatibles con OpenAI
+        // baseURL
         node.baseUrl = (config.baseUrl || "").trim();
-        node.provider = providerOf(node.modelString);
 
         // apiKey via credenciales del nodo o variable de entorno segun proveedor
-        const envKey =
-            node.provider === "groq"
-                ? process.env.GROQ_API_KEY
-                : process.env.OPENAI_API_KEY;
+        const envKey = process.env.LLM_API_KEY;
         node.apiKey =
-            (node.credentials && node.credentials.apiKey) || envKey || "not-needed";
+            (node.credentials && node.credentials.apiKey) || envKey || "";
 
         // initChatModel es async: se resuelve en el primer input y se cachea
         // (una instancia por nodo, patron LangChain). Si falla, se limpia el
@@ -45,11 +35,14 @@ module.exports = function (RED) {
         node._getModel = function () {
             if (!node._modelPromise) {
                 const params = {
-                    apiKey: node.apiKey,
                     temperature: node.temperature
                 };
-                // Base URL solo para openai-compatible; groq ya trae su endpoint
-                if (node.baseUrl && node.provider !== "groq") {
+                
+                if (node.apiKey) {
+                    params.apiKey = node.apiKey;
+                }
+                
+                if (node.baseUrl) {
                     params.configuration = { baseURL: node.baseUrl };
                 }
                 node._modelPromise = initChatModel(node.modelString, params).catch(
@@ -70,6 +63,15 @@ module.exports = function (RED) {
                     "langgraph-llm: msg.state.messages no existe. Conecta un nodo langgraph-start antes."
                 );
                 node.status({ fill: "red", shape: "ring", text: "state missing" });
+                if (done) { done(err); } else { node.error(err, msg); }
+                return;
+            }
+
+            if (!node.modelString) {
+                const err = new Error(
+                    "langgraph-llm: El parámetro 'model' es obligatorio. Configura el proveedor y modelo (ej. 'groq:openai/gpt-oss-120b')."
+                );
+                node.status({ fill: "red", shape: "ring", text: "model unconfigured" });
                 if (done) { done(err); } else { node.error(err, msg); }
                 return;
             }
