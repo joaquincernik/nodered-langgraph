@@ -5,7 +5,7 @@
     </div>
     <div class="form-row">
         <label for="node-input-model"><i class="fa fa-cube"></i> Modelo</label>
-        <input type="text" id="node-input-model" placeholder="groq:openai/gpt-oss-120b">
+        <input type="text" id="node-input-model" placeholder="ej. groq:openai/gpt-oss-120b">
     </div>
     <div class="form-row">
         <label for="node-input-temperature"><i class="fa fa-thermometer-half"></i> Temperature</label>
@@ -13,36 +13,31 @@
     </div>
     <div class="form-row">
         <label for="node-input-baseUrl"><i class="fa fa-link"></i> Base URL</label>
-        <input type="text" id="node-input-baseUrl" placeholder="(opcional, solo openai-compatible) ej: http://host.docker.internal:11434/v1">
+        <input type="text" id="node-input-baseUrl" placeholder="(opcional) ej. http://localhost:11434/v1">
     </div>
     <div class="form-row">
         <label for="node-input-apiKey"><i class="fa fa-key"></i> API Key</label>
         <input type="password" id="node-input-apiKey">
     </div>
     <div class="form-tips">
-        Formato <code>proveedor:modelo</code> (ej. <code>groq:openai/gpt-oss-120b</code>,
-        <code>openai:gpt-4o-mini</code>). Sin prefijo se asume <code>openai</code>.
-        Si la API Key se omite, usa <code>GROQ_API_KEY</code> u <code>OPENAI_API_KEY</code>
-        del entorno según el proveedor.
+        <b>Modelo:</b> Formato <code>proveedor:modelo</code> obligatorio (ej. <code>groq:openai/gpt-oss-120b</code>, <code>openai:gpt-4o-mini</code>).<br>
+        <b>Base URL:</b> Opcional. Úsala para servidores locales (Ollama, LM Studio) o proxies corporativos.<br>
+        <b>API Key:</b> Si se omite en la interfaz, el nodo intentará leer <code>LLM_API_KEY</code> desde las variables de entorno.
     </div>
 </script>
 
 <script type="text/html" data-help-name="langgraph-llm">
     <p>
-        Nodo ejecutor de LLM usando <b>LangChain</b> (<code>initChatModel</code>).
-        Resuelve el modelo con formato <code>proveedor:modelo</code> (ej.
-        <code>groq:openai/gpt-oss-120b</code>), restaura los mensajes
-        serializados de <code>msg.state.messages</code> con
-        <code>mapStoredMessagesToChatMessages</code>, invoca al modelo y añade la
-        respuesta (<code>AIMessage</code>) al historial. Incrementa
-        <code>msg.state.iterations</code>.
+        Nodo ejecutor de LLM genérico que utiliza <b>LangChain</b> (<code>initChatModel</code>).
+        Restaura los mensajes serializados de <code>msg.state.messages</code>, invoca al modelo configurado
+        y añade la respuesta (<code>AIMessage</code>) al historial de estado del grafo.
     </p>
     <h3>Configuración</h3>
     <ul>
-        <li><b>Modelo</b> — formato <code>proveedor:modelo</code> (default: <code>groq:openai/gpt-oss-120b</code>).</li>
-        <li><b>Temperature</b> — creatividad (default: 0.7).</li>
-        <li><b>Base URL</b> — opcional; solo para endpoints compatibles con OpenAI (Ollama, vLLM...); se ignora con <code>groq:</code>.</li>
-        <li><b>API Key</b> — credencial; si se omite usa <code>GROQ_API_KEY</code> o <code>OPENAI_API_KEY</code> del entorno según el proveedor.</li>
+        <li><b>Modelo</b> (Obligatorio) — Formato <code>proveedor:modelo</code> (ej. <code>groq:openai/gpt-oss-120b</code>, <code>openai:gpt-4o-mini</code>, <code>anthropic:claude-3-5-sonnet</code>).</li>
+        <li><b>Temperature</b> — Creatividad de la respuesta (default: 0.7).</li>
+        <li><b>Base URL</b> — (Opcional) Dirección personalizada del endpoint. Necesaria para modelos locales o proxies corporativos. Dejar en blanco para usar los servidores oficiales del proveedor.</li>
+        <li><b>API Key</b> — Credencial de autenticación. Si no se especifica, se intenta leer desde la variable de entorno <code>LLM_API_KEY</code>. No es necesaria para la mayoría de los servidores locales.</li>
     </ul>
 </script>
 
@@ -52,7 +47,7 @@
         color: "#4d7dd6",
         defaults: {
             name: { value: "" },
-            model: { value: "groq:openai/gpt-oss-120b", required: true },
+            model: { value: "", required: true },
             temperature: { value: 0.7, validate: RED.validators.number(true) },
             baseUrl: { value: "" }
         },
@@ -64,7 +59,7 @@
         icon: "font-awesome/fa-comments",
         paletteLabel: "langgraph llm",
         label: function () {
-            return this.name || "langgraph-llm";
+            return this.name || this.model || "langgraph-llm";
         },
         labelStyle: function () {
             return this.name ? "node_label_italic" : "";
