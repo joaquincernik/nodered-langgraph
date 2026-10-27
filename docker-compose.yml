@@ -1,6 +1,6 @@
 services:
   
-  nodered_soa2026:
+  nodered_pfs2026:
     container_name: nodered_pfs2026
     image: nodered/node-red:4.1.7
     privileged: true
