@@ -4,6 +4,8 @@
  * del asistente (AIMessage serializado) hacia msg.payload para su consumo
  * por el resto del flujo (debug, http response, etc).
  * msg.state completo se conserva siempre en el mensaje.
+ * Si el mensaje no trae estado (flujo de prompt chaining), actúa como
+ * pass-through: deja el mensaje intacto y lo reenvía.
  */
 module.exports = function (RED) {
     function LangGraphEndNode(config) {
@@ -15,11 +17,11 @@ module.exports = function (RED) {
 
             try {
                 if (!msg.state || !Array.isArray(msg.state.messages)) {
-                    const err = new Error(
-                        "langgraph-end: msg.state.messages no existe. Conecta un nodo langgraph-start antes."
-                    );
-                    node.status({ fill: "red", shape: "ring", text: "state missing" });
-                    if (done) { done(err); } else { node.error(err, msg); }
+                    // Sin estado: flujo de prompt chaining. No hay nada que
+                    // consolidar, así que se reenvía el mensaje tal cual.
+                    node.status({ fill: "grey", shape: "dot", text: "pass-through" });
+                    send(msg);
+                    if (done) { done(); }
                     return;
                 }
 

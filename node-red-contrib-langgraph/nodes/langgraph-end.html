@@ -6,6 +6,8 @@
     <div class="form-tips">
         Marca el estado como <code>COMPLETED</code> y publica el contenido del
         último mensaje del asistente en <code>msg.payload</code>.
+        Si el mensaje no trae <code>msg.state</code> (prompt chaining), lo
+        reenvía sin modificar (<i>pass-through</i>).
     </div>
 </script>
 
@@ -22,6 +24,13 @@
     <p>
         El objeto completo <code>msg.state</code> (historial incluido) se
         conserva en el mensaje para inspección o para nodos posteriores.
+    </p>
+    <p>
+        Si el mensaje llega <b>sin</b> <code>msg.state</code> (por ejemplo en un
+        flujo de <b>prompt chaining</b>, donde el LLM escribe su respuesta en
+        <code>msg.payload</code>), el nodo actúa como <i>pass-through</i>: no
+        modifica nada y reenvía el mensaje. Así sirve también como cierre de
+        cadenas sin grafo.
     </p>
 </script>
 

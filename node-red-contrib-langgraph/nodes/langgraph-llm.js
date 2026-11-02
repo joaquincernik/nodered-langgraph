@@ -1,13 +1,20 @@
 /**
  * langgraph-llm — Ejecuta la llamada al modelo de chat usando LangChain.
  * Resuelve el modelo con initChatModel (formato "proveedor:modelo", ej.
- * "groq:openai/gpt-oss-120b", "openai:gpt-4o-mini"), restaurando los
- * mensajes serializados en msg.state con mapStoredMessagesToChatMessages y
- * añadiendo la respuesta del asistente al historial.
+ * "groq:openai/gpt-oss-120b", "openai:gpt-4o-mini").
+ *
+ * Dos modos:
+ * - Prompt chaining: si msg.userPrompt es un string no vacío, se usa como
+ *   mensaje del usuario y la respuesta se escribe en msg.payload.
+ *   msg.userPrompt no se modifica y msg.state se ignora.
+ * - Grafo LangGraph: si no, restaura msg.state.messages con
+ *   mapStoredMessagesToChatMessages y añade la respuesta al historial.
  */
 module.exports = function (RED) {
     const { initChatModel } = require("langchain/chat_models/universal");
     const {
+        HumanMessage,
+        SystemMessage,
         mapStoredMessagesToChatMessages
     } = require("@langchain/core/messages");
 
@@ -22,6 +29,8 @@ module.exports = function (RED) {
         }
         // baseURL
         node.baseUrl = (config.baseUrl || "").trim();
+        // system prompt configurado en el nodo (efimero: no se guarda en msg.state)
+        node.systemPrompt = (config.systemPrompt || "").trim();
 
         // apiKey via credenciales del nodo o variable de entorno segun proveedor
         const envKey = process.env.LLM_API_KEY;
@@ -58,15 +67,6 @@ module.exports = function (RED) {
         node.on("input", function (msg, send, done) {
             send = send || function () { node.send.apply(node, arguments); };
 
-            if (!msg.state || !Array.isArray(msg.state.messages)) {
-                const err = new Error(
-                    "langgraph-llm: msg.state.messages no existe. Conecta un nodo langgraph-start antes."
-                );
-                node.status({ fill: "red", shape: "ring", text: "state missing" });
-                if (done) { done(err); } else { node.error(err, msg); }
-                return;
-            }
-
             if (!node.modelString) {
                 const err = new Error(
                     "langgraph-llm: El parámetro 'model' es obligatorio. Configura el proveedor y modelo (ej. 'groq:openai/gpt-oss-120b')."
@@ -76,25 +76,64 @@ module.exports = function (RED) {
                 return;
             }
 
+            // Modo prompt chaining: msg.userPrompt -> respuesta en msg.payload
+            const chainedPrompt =
+                typeof msg.userPrompt === "string" ? msg.userPrompt.trim() : "";
+            const chained = chainedPrompt.length > 0;
+            const hasState = msg.state && Array.isArray(msg.state.messages);
+
+            if (!chained && !hasState) {
+                const err = new Error(
+                    "langgraph-llm: el mensaje no trae msg.userPrompt ni msg.state.messages. " +
+                    "Para prompt chaining definí msg.userPrompt; para el grafo LangGraph usá un nodo langgraph-start."
+                );
+                node.status({ fill: "red", shape: "ring", text: "no prompt" });
+                if (done) { done(err); } else { node.error(err, msg); }
+                return;
+            }
+
             node.status({ fill: "yellow", shape: "ring", text: "invoking" });
 
-            // Restaura el historial serializado -> instancias BaseMessage de LangChain
-            const messages = mapStoredMessagesToChatMessages(msg.state.messages);
+            // Chaining: cada llamada es independiente (sin historial).
+            // Grafo: restaura el historial serializado -> BaseMessage de LangChain.
+            let messages = chained
+                ? [new HumanMessage(chainedPrompt)]
+                : mapStoredMessagesToChatMessages(msg.state.messages);
+
+            // System prompt (efimero: solo para esta invocacion, no se persiste en el estado)
+            // Precedencia: msg.systemPrompt > system ya presente en el estado > config del nodo
+            const runtimePrompt =
+                typeof msg.systemPrompt === "string" ? msg.systemPrompt.trim() : "";
+            if (runtimePrompt) {
+                messages = messages.filter(function (m) { return m.getType() !== "system"; });
+                messages.unshift(new SystemMessage(runtimePrompt));
+            } else if (
+                node.systemPrompt &&
+                !messages.some(function (m) { return m.getType() === "system"; })
+            ) {
+                messages.unshift(new SystemMessage(node.systemPrompt));
+            }
 
             node._getModel()
                 .then(function (model) {
                     return model.invoke(messages);
                 })
                 .then(function (response) {
-                    // response es un AIMessage; lo serializamos y lo añadimos al estado
-                    msg.state.messages.push(response.toDict());
-                    msg.state.iterations = (msg.state.iterations || 0) + 1;
-                    msg.state.next_node = "end";
-                    node.status({
-                        fill: "green",
-                        shape: "dot",
-                        text: "iter " + msg.state.iterations
-                    });
+                    if (chained) {
+                        // Modo chaining: la respuesta va al payload y el userPrompt queda intacto
+                        msg.payload = response.text;
+                        node.status({ fill: "green", shape: "dot", text: "chained" });
+                    } else {
+                        // Modo grafo: response es un AIMessage; lo serializamos al estado
+                        msg.state.messages.push(response.toDict());
+                        msg.state.iterations = (msg.state.iterations || 0) + 1;
+                        msg.state.next_node = "end";
+                        node.status({
+                            fill: "green",
+                            shape: "dot",
+                            text: "iter " + msg.state.iterations
+                        });
+                    }
                     send(msg);
                     if (done) { done(); }
                 })

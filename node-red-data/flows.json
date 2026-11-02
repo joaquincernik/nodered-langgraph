@@ -2,7 +2,15 @@
     {
         "id": "6e0bbe9565d69b26",
         "type": "tab",
-        "label": "Flow 1",
+        "label": "1-Augmented LLM",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "53ea6da2adaa02b3",
+        "type": "tab",
+        "label": "2-Prompt chaining",
         "disabled": false,
         "info": "",
         "env": []
@@ -93,6 +101,253 @@
         "statusType": "auto",
         "x": 940,
         "y": 160,
+        "wires": []
+    },
+    {
+        "id": "4bc150bc8afaac83",
+        "type": "langgraph-start",
+        "z": "53ea6da2adaa02b3",
+        "name": "",
+        "maxIterations": 5,
+        "x": 280,
+        "y": 180,
+        "wires": [
+            [
+                "6b34e4967ada160e"
+            ]
+        ]
+    },
+    {
+        "id": "36405fd12be6e4bc",
+        "type": "langgraph-llm",
+        "z": "53ea6da2adaa02b3",
+        "name": "llm",
+        "model": "groq:openai/gpt-oss-120b",
+        "temperature": 0.7,
+        "baseUrl": "",
+        "systemPrompt": "",
+        "x": 490,
+        "y": 180,
+        "wires": [
+            [
+                "e444f5e22af302cd",
+                "2507f1e8512d4861"
+            ]
+        ]
+    },
+    {
+        "id": "5c3de14322c6dfe6",
+        "type": "langgraph-end",
+        "z": "53ea6da2adaa02b3",
+        "name": "",
+        "x": 1100,
+        "y": 180,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "1c1f2a3627dae50a",
+        "type": "inject",
+        "z": "53ea6da2adaa02b3",
+        "name": "Tema",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "futbol",
+        "payload": "",
+        "payloadType": "str",
+        "x": 110,
+        "y": 180,
+        "wires": [
+            [
+                "4bc150bc8afaac83"
+            ]
+        ]
+    },
+    {
+        "id": "e444f5e22af302cd",
+        "type": "debug",
+        "z": "53ea6da2adaa02b3",
+        "name": "Broma cruda",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 590,
+        "y": 320,
+        "wires": []
+    },
+    {
+        "id": "3b1ba9d121d54981",
+        "type": "langgraph-llm",
+        "z": "53ea6da2adaa02b3",
+        "name": "llm",
+        "model": "groq:openai/gpt-oss-120b",
+        "temperature": 0.7,
+        "baseUrl": "",
+        "systemPrompt": "",
+        "x": 670,
+        "y": 180,
+        "wires": [
+            [
+                "f0a811723f66c747",
+                "9029529e620eeff0"
+            ]
+        ]
+    },
+    {
+        "id": "6b34e4967ada160e",
+        "type": "change",
+        "z": "53ea6da2adaa02b3",
+        "name": "Armado de broma",
+        "rules": [
+            {
+                "t": "set",
+                "p": "userPrompt",
+                "pt": "msg",
+                "to": "\"Contame un chiste original y corto sobre \" & msg.topic & \". Respondé sólo con el chiste, sin comillas ni comentarios.\"",
+                "tot": "jsonata"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 310,
+        "y": 260,
+        "wires": [
+            [
+                "36405fd12be6e4bc"
+            ]
+        ]
+    },
+    {
+        "id": "2507f1e8512d4861",
+        "type": "change",
+        "z": "53ea6da2adaa02b3",
+        "name": "Consejo de mejora de broma",
+        "rules": [
+            {
+                "t": "set",
+                "p": "joke",
+                "pt": "msg",
+                "to": "msg.payload",
+                "tot": "jsonata"
+            },
+            {
+                "t": "set",
+                "p": "userPrompt",
+                "pt": "msg",
+                "to": "\"Revisá este chiste y decime en una o dos frases cómo mejorarlo: \" & msg.joke",
+                "tot": "jsonata"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 590,
+        "y": 100,
+        "wires": [
+            [
+                "3b1ba9d121d54981"
+            ]
+        ]
+    },
+    {
+        "id": "f0a811723f66c747",
+        "type": "debug",
+        "z": "53ea6da2adaa02b3",
+        "name": "Mejora de broma",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 760,
+        "y": 260,
+        "wires": []
+    },
+    {
+        "id": "9029529e620eeff0",
+        "type": "change",
+        "z": "53ea6da2adaa02b3",
+        "name": "Broma final",
+        "rules": [
+            {
+                "t": "set",
+                "p": "userPrompt",
+                "pt": "msg",
+                "to": "\"Este es el chiste actual: \" & msg.joke & \". Sobre el tema \" & msg.topic & \", mejorálo una vez más. Respondé sólo con el chiste final.\"",
+                "tot": "jsonata"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 870,
+        "y": 100,
+        "wires": [
+            [
+                "3cf6b38ea37ebc3f"
+            ]
+        ]
+    },
+    {
+        "id": "3cf6b38ea37ebc3f",
+        "type": "langgraph-llm",
+        "z": "53ea6da2adaa02b3",
+        "name": "llm",
+        "model": "groq:openai/gpt-oss-120b",
+        "temperature": 0.7,
+        "baseUrl": "",
+        "systemPrompt": "",
+        "x": 930,
+        "y": 180,
+        "wires": [
+            [
+                "e8775fda70e0a490",
+                "5c3de14322c6dfe6"
+            ]
+        ]
+    },
+    {
+        "id": "e8775fda70e0a490",
+        "type": "debug",
+        "z": "53ea6da2adaa02b3",
+        "name": "Broma final",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1020,
+        "y": 280,
         "wires": []
     }
 ]

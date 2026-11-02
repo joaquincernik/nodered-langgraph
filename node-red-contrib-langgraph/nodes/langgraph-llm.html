@@ -16,11 +16,17 @@
         <input type="text" id="node-input-baseUrl" placeholder="(opcional) ej. http://localhost:11434/v1">
     </div>
     <div class="form-row">
+        <label for="node-input-systemPrompt"><i class="fa fa-commenting-o"></i> System Prompt</label>
+        <textarea id="node-input-systemPrompt" rows="4" placeholder="ej. Sos un asistente que responde en español y de forma concisa."></textarea>
+    </div>
+    <div class="form-row">
         <label for="node-input-apiKey"><i class="fa fa-key"></i> API Key</label>
         <input type="password" id="node-input-apiKey">
     </div>
     <div class="form-tips">
         <b>Modelo:</b> Formato <code>proveedor:modelo</code> obligatorio (ej. <code>groq:openai/gpt-oss-120b</code>, <code>openai:gpt-4o-mini</code>).<br>
+        <b>Entrada:</b> si llega <code>msg.userPrompt</code>, se usa como prompt y la respuesta se escribe en <code>msg.payload</code> (modo prompt chaining; no usa <code>msg.state</code>). Si no, usa <code>msg.state.messages</code> (modo grafo).<br>
+        <b>System Prompt:</b> Opcional. Se antepone como <code>SystemMessage</code> en cada llamada; no se guarda en <code>msg.state</code>. Se puede sobrescribir por mensaje con <code>msg.systemPrompt</code>.<br>
         <b>Base URL:</b> Opcional. Úsala para servidores locales (Ollama, LM Studio) o proxies corporativos.<br>
         <b>API Key:</b> Si se omite en la interfaz, el nodo intentará leer <code>LLM_API_KEY</code> desde las variables de entorno.
     </div>
@@ -29,14 +35,18 @@
 <script type="text/html" data-help-name="langgraph-llm">
     <p>
         Nodo ejecutor de LLM genérico que utiliza <b>LangChain</b> (<code>initChatModel</code>).
-        Restaura los mensajes serializados de <code>msg.state.messages</code>, invoca al modelo configurado
-        y añade la respuesta (<code>AIMessage</code>) al historial de estado del grafo.
+        Soporta dos modos:
     </p>
+    <ul>
+        <li><b>Prompt chaining</b>: si el mensaje trae <code>msg.userPrompt</code>, se usa ese texto como mensaje del usuario y la respuesta se escribe en <code>msg.payload</code>. <code>msg.userPrompt</code> no se modifica y <code>msg.state</code> se ignora. Ideal para cadenas donde cada llamada procesa la salida de la anterior.</li>
+        <li><b>Grafo LangGraph</b>: si no hay <code>msg.userPrompt</code>, restaura los mensajes de <code>msg.state.messages</code>, invoca al modelo y añade la respuesta (<code>AIMessage</code>) al historial de estado.</li>
+    </ul>
     <h3>Configuración</h3>
     <ul>
         <li><b>Modelo</b> (Obligatorio) — Formato <code>proveedor:modelo</code> (ej. <code>groq:openai/gpt-oss-120b</code>, <code>openai:gpt-4o-mini</code>, <code>anthropic:claude-3-5-sonnet</code>).</li>
         <li><b>Temperature</b> — Creatividad de la respuesta (default: 0.7).</li>
         <li><b>Base URL</b> — (Opcional) Dirección personalizada del endpoint. Necesaria para modelos locales o proxies corporativos. Dejar en blanco para usar los servidores oficiales del proveedor.</li>
+        <li><b>System Prompt</b> — (Opcional) Instrucciones de sistema. Se antepone como <code>SystemMessage</code> en cada invocación (no se persiste en <code>msg.state</code>). Precedencia: <code>msg.systemPrompt</code> &gt; system ya presente en el estado &gt; config del nodo.</li>
         <li><b>API Key</b> — Credencial de autenticación. Si no se especifica, se intenta leer desde la variable de entorno <code>LLM_API_KEY</code>. No es necesaria para la mayoría de los servidores locales.</li>
     </ul>
 </script>
@@ -49,7 +59,8 @@
             name: { value: "" },
             model: { value: "", required: true },
             temperature: { value: 0.7, validate: RED.validators.number(true) },
-            baseUrl: { value: "" }
+            baseUrl: { value: "" },
+            systemPrompt: { value: "" }
         },
         credentials: {
             apiKey: { type: "password" }
