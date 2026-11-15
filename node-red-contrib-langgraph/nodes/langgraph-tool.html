@@ -1,0 +1,163 @@
+<script type="text/html" data-template-name="langgraph-tool">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Nombre</label>
+        <input type="text" id="node-input-name" placeholder="Nombre del nodo">
+    </div>
+    <div class="form-row">
+        <label for="node-input-toolName"><i class="fa fa-wrench"></i> Nombre de la herramienta</label>
+        <input type="text" id="node-input-toolName" placeholder="clima">
+    </div>
+    <div class="form-row">
+        <label for="node-input-url"><i class="fa fa-link"></i> Dirección del flujo</label>
+        <input type="text" id="node-input-url" placeholder="http://localhost:1880/tool/clima">
+    </div>
+    <div class="form-row">
+        <label for="node-input-method"><i class="fa fa-exchange"></i> Método</label>
+        <select id="node-input-method">
+            <option value="POST">POST (manda el pedido como JSON)</option>
+            <option value="GET">GET (manda el dato en la dirección)</option>
+        </select>
+    </div>
+    <div class="form-row">
+        <label for="node-input-timeout"><i class="fa fa-clock-o"></i> Espera máxima</label>
+        <input type="text" id="node-input-timeout" placeholder="15000">
+        <span style="margin-left:6px;color:#888;">milisegundos</span>
+    </div>
+    <div class="form-tips">
+        Llama a un flujo de Node-RED que hace de herramienta y guarda la
+        respuesta en el expediente. Solo actúa cuando el pedido es para la
+        herramienta con este mismo nombre; si no, deja pasar el mensaje.
+    </div>
+</script>
+
+<script type="text/html" data-help-name="langgraph-tool">
+    <p>
+        Este nodo es el puente entre el agente y una herramienta. La idea del
+        proyecto es simple: <b>una herramienta es un flujo normal de
+        Node-RED</b>, no un complemento especial. El flujo recibe un dato,
+        hace su trabajo y devuelve una respuesta.
+    </p>
+
+    <h3>Cómo se hablan</h3>
+    <ol>
+        <li>
+            Alguien anota en el expediente qué se necesita:
+            <code>msg.state.tool_request = { name: "clima", input: "Rosario" }</code>.
+            Lo puede escribir un nodo Function, un Change, o el propio modelo
+            siguiendo una convención de texto.
+        </li>
+        <li>El <code>langgraph-router</code> manda el mensaje por su salida <b>tool</b>.</li>
+        <li>
+            Este nodo revisa el pedido. Si el nombre coincide con el suyo,
+            llama al flujo por HTTP, toma la respuesta y la guarda en el
+            expediente como un mensaje más.
+        </li>
+        <li>
+            Deja <code>next_node = "llm"</code> y el mensaje sigue viaje, para
+            que el modelo lea el resultado y responda.
+        </li>
+    </ol>
+
+    <h3>Qué se guarda en el historial</h3>
+    <p>
+        El resultado se agrega como un mensaje de usuario con este formato:
+    </p>
+    <pre>[Resultado de la herramienta "clima"] Soleado, 24 °C</pre>
+    <p>
+        Se usa un mensaje de usuario a propósito: algunos proveedores solo
+        aceptan mensajes de herramienta cuando el modelo la pidió a su manera.
+        Con este formato funciona con todos y el modelo entiende igual.
+    </p>
+
+    <h3>Qué tiene que devolver el flujo</h3>
+    <p>
+        Cualquier respuesta sirve. Es lo más cómodo:
+    </p>
+    <ul>
+        <li><b>Texto plano</b> — se guarda tal cual.</li>
+        <li><b><code>{ "output": "..." }</code></b> — se usa ese texto.</li>
+        <li><b>Otro JSON</b> — se guarda completo, como texto.</li>
+    </ul>
+    <p>
+        Si el flujo responde con un error (por ejemplo 500), el nodo no corta
+        el grafo: le cuenta la falla al modelo para que pueda explicarla o
+        intentar otra cosa.
+    </p>
+
+    <h3>Ejemplo de flujo herramienta</h3>
+    <p>
+        En una pestaña aparte, o en la misma, armá un flujo que empiece con
+        <code>http in</code> y termine con <code>http response</code>:
+    </p>
+    <pre>http in (POST /tool/clima)
+        ↓
+function (simula el clima)
+        ↓
+http response</pre>
+    <p>
+        Con <b>POST</b>, el flujo recibe el pedido completo en
+        <code>msg.payload</code>: <code>{ name, input }</code>. Con <b>GET</b>,
+        el dato llega en <code>msg.payload.input</code> o en
+        <code>msg.req.query.input</code>.
+    </p>
+    <p>
+        Para probarlo solo, sin el agente:
+    </p>
+    <pre>curl -X POST http://localhost:1880/tool/clima \
+  -H "Content-Type: application/json" \
+  -d '{"name":"clima","input":"Rosario"}'</pre>
+
+    <h3>Detalles prácticos</h3>
+    <ul>
+        <li>
+            <b>Nombre de la herramienta</b> — es la etiqueta que usa el agente
+            para pedirla. Tiene que coincidir con el <code>name</code> del
+            pedido. Si no coincide, el nodo deja pasar el mensaje sin tocarlo,
+            así se pueden encadenar varias herramientas.
+        </li>
+        <li>
+            <b>Espera máxima</b> — si el flujo no contesta a tiempo, se toma
+            como falla y se le avisa al modelo. Por defecto, 15 segundos.
+        </li>
+        <li>
+            <b>Una herramienta no decide nada</b> — solo consigue el dato.
+            Quien decide si hace falta otra vuelta o si ya terminó es el
+            modelo, a través del <code>langgraph-router</code>.
+        </li>
+        <li>
+            <b>El flujo puede ser cualquier cosa</b> — un HTTP request a una
+            API, una consulta a una base, un cálculo, otro flujo que ya tenías.
+        </li>
+    </ul>
+</script>
+
+<script>
+    RED.nodes.registerType("langgraph-tool", {
+        category: "langgraph",
+        color: "#d6a56b",
+        defaults: {
+            name: { value: "" },
+            toolName: { value: "", required: true },
+            url: { value: "", required: true },
+            method: { value: "POST" },
+            timeout: { value: 15000, validate: RED.validators.number(true) }
+        },
+        inputs: 1,
+        outputs: 1,
+        icon: "font-awesome/fa-wrench",
+        paletteLabel: "langgraph tool",
+        label: function () {
+            return this.name || this.toolName || "langgraph-tool";
+        },
+        labelStyle: function () {
+            return this.name ? "node_label_italic" : "";
+        },
+        oneditprepare: function () {
+            // Si el nodo es viejo y no tiene espera, mostramos el valor sano
+            // en vez de un campo vacío que confunde.
+            if (!this.timeout) {
+                $("#node-input-timeout").val(15000);
+            }
+        }
+    });
+</script>

@@ -1,7 +1,7 @@
 {
     "name": "node-red-contrib-langgraph",
     "version": "0.0.1",
-    "description": "Nodos inspirados en LangGraph (START, LLM, ROUTER, END) potenciados por LangChain para Node-RED",
+    "description": "Nodos inspirados en LangGraph (START, LLM, ROUTER, TOOL, END) potenciados por LangChain para Node-RED",
     "keywords": [
         "node-red",
         "langgraph",
@@ -23,6 +23,7 @@
             "langgraph-start": "nodes/langgraph-start.js",
             "langgraph-llm": "nodes/langgraph-llm.js",
             "langgraph-router": "nodes/langgraph-router.js",
+            "langgraph-tool": "nodes/langgraph-tool.js",
             "langgraph-end": "nodes/langgraph-end.js"
         }
     }
