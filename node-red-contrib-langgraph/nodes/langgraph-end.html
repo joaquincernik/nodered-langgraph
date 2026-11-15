@@ -22,6 +22,12 @@
         <code>next_node</code> a <code>null</code>.
     </p>
     <p>
+        Si el expediente ya llegó a un estado final (<code>COMPLETED</code>,
+        <code>MAX_ITERATIONS</code>, <code>ERROR</code> o
+        <code>INTERRUPTED</code>), el nodo <b>no</b> lo pisa. Así se conserva el
+        motivo real del final.
+    </p>
+    <p>
         El objeto completo <code>msg.state</code> (historial incluido) se
         conserva en el mensaje para inspección o para nodos posteriores.
     </p>
@@ -29,8 +35,9 @@
         Si el mensaje llega <b>sin</b> <code>msg.state</code> (por ejemplo en un
         flujo de <b>prompt chaining</b>, donde el LLM escribe su respuesta en
         <code>msg.payload</code>), el nodo actúa como <i>pass-through</i>: no
-        modifica nada y reenvía el mensaje. Así sirve también como cierre de
-        cadenas sin grafo.
+        modifica nada y reenvía el mensaje. Lo mismo hace si hay expediente
+        pero todavía no hay ninguna respuesta del asistente, para no borrar lo
+        que ya venía en <code>msg.payload</code>.
     </p>
 </script>
 

@@ -1,13 +1,15 @@
 /**
  * langgraph-start — Nodo de entrada del grafo.
- * Inicializa msg.state con el contrato definido en el README:
- * { state: { messages, next_node, status, iterations, max_iterations } }
- * El primer mensaje se serializa con el formato estándar de LangChain
- * (via HumanMessage.toDict()) para poder ser restaurado con
- * mapStoredMessagesToChatMessage en los nodos downstream.
+ * Inicializa msg.state con el contrato del proyecto:
+ * { version, run_id, messages, next_node, status, iterations, max_iterations }
+ * El primer mensaje se guarda en el formato estándar de LangChain para que los
+ * nodos siguientes puedan reconstruirlo.
+ *
+ * La creación del expediente vive en lib/state.js: los tres nodos usan la
+ * misma receta, así no se desincronizan cuando el contrato cambie.
  */
 module.exports = function (RED) {
-    const { HumanMessage } = require("@langchain/core/messages");
+    const { createState } = require("../lib/state");
 
     function LangGraphStartNode(config) {
         RED.nodes.createNode(this, config);
@@ -26,21 +28,17 @@ module.exports = function (RED) {
                     msg.payload !== undefined && msg.payload !== null && msg.payload !== ""
                         ? msg.payload
                         : " ";
-                // Si msg.payload es objeto/number, lo stringifyamos para el contenido del mensaje
+                // Si msg.payload es objeto/number, lo convertimos a texto para
+                // que el mensaje del usuario sea legible por el modelo.
                 const text =
                     typeof input === "object" ? JSON.stringify(input) : String(input);
 
-                const userMessage = new HumanMessage(text);
-
-                // Estado inicial limpio (se sobreescribe si ya existia, para arrancar el grafo)
-                msg.state = {
-                    // toDict() -> { type: "human", data: { content, ... } }
-                    messages: [userMessage.toDict()],
-                    next_node: "llm",
-                    status: "RUNNING",
-                    iterations: 0,
-                    max_iterations: node.maxIterations
-                };
+                // Cada corrida arranca con un expediente nuevo: identificador
+                // propio (run_id), contador en cero y estado RUNNING.
+                msg.state = createState({
+                    text: text,
+                    maxIterations: node.maxIterations
+                });
 
                 node.status({ fill: "green", shape: "dot", text: "initialized" });
                 send(msg);

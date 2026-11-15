@@ -21,8 +21,15 @@
     <p>
         Recibe el input inicial (<code>msg.payload</code>) y crea/inicializa el
         objeto <code>msg.state</code> con el contrato definido en el proyecto:
-        <code>messages</code>, <code>next_node</code>, <code>status</code>,
-        <code>iterations</code> y <code>max_iterations</code>.
+        <code>version</code>, <code>run_id</code>, <code>messages</code>,
+        <code>next_node</code>, <code>status</code>, <code>iterations</code> y
+        <code>max_iterations</code>.
+    </p>
+    <p>
+        <code>run_id</code> identifica cada corrida con un valor único, para
+        poder distinguir una ejecución de otra en los registros y, más
+        adelante, en los puntos de guardado. <code>version</code> permite
+        reconocer expedientes viejos si el formato cambia.
     </p>
     <p>
         El primer mensaje se serializa con el formato estándar de LangChain

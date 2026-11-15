@@ -1,13 +1,25 @@
 /**
  * langgraph-end — Consolidador de salida del grafo.
- * Marca el estado como COMPLETED y extrae el contenido del último mensaje
- * del asistente (AIMessage serializado) hacia msg.payload para su consumo
- * por el resto del flujo (debug, http response, etc).
- * msg.state completo se conserva siempre en el mensaje.
- * Si el mensaje no trae estado (flujo de prompt chaining), actúa como
- * pass-through: deja el mensaje intacto y lo reenvía.
+ * Publica el contenido del último mensaje del asistente en msg.payload y deja
+ * el expediente (msg.state) en un estado final.
+ *
+ * Dos cuidados importantes:
+ *
+ * 1. Si no hay respuesta del asistente, NO toca msg.payload. Ese caso aparece
+ *    en los flujos de prompt chaining que igual pasaron por un start: hay
+ *    expediente, pero el LLM escribió su respuesta directamente en el
+ *    mensaje. Antes se publicaba un texto vacío y se borraba el resultado.
+ *
+ * 2. Si el expediente ya llegó a un estado final (por ejemplo el límite de
+ *    vueltas que marcará el router), no lo pisa con COMPLETED. Así el motivo
+ *    real del final no se pierde.
+ *
+ * Las reglas para leer el expediente viven en lib/state.js, compartidas con
+ * los demás nodos.
  */
 module.exports = function (RED) {
+    const { lastAssistant, messageText, isTerminal } = require("../lib/state");
+
     function LangGraphEndNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
@@ -17,34 +29,37 @@ module.exports = function (RED) {
 
             try {
                 if (!msg.state || !Array.isArray(msg.state.messages)) {
-                    // Sin estado: flujo de prompt chaining. No hay nada que
-                    // consolidar, así que se reenvía el mensaje tal cual.
+                    // Sin expediente: flujo que no usa el grafo. No hay nada
+                    // que consolidar, así que se reenvía el mensaje tal cual.
                     node.status({ fill: "grey", shape: "dot", text: "pass-through" });
                     send(msg);
                     if (done) { done(); }
                     return;
                 }
 
-                // Busca el último mensaje del asistente serializado.
-                // Formato LangChain: { type: "ai", data: { content, ... } }
-                const messages = msg.state.messages;
-                let lastAssistant = null;
-                for (let i = messages.length - 1; i >= 0; i--) {
-                    const m = messages[i];
-                    const type = m && (m.type || m.role);
-                    if (type === "ai" || type === "assistant") {
-                        lastAssistant = m;
-                        break;
-                    }
+                const state = msg.state;
+                const respuesta = lastAssistant(state);
+
+                if (!respuesta) {
+                    // Hay expediente pero nadie respondió todavía. Puede ser
+                    // un flujo de prompt chaining donde la respuesta ya viaja
+                    // en msg.payload. Reenviamos sin tocar nada para no
+                    // borrar ese contenido.
+                    node.status({ fill: "grey", shape: "dot", text: "sin respuesta" });
+                    send(msg);
+                    if (done) { done(); }
+                    return;
                 }
 
-                const content = lastAssistant
-                    ? (lastAssistant.data ? lastAssistant.data.content : lastAssistant.content)
-                    : "";
+                // Publicamos el texto de la última respuesta del asistente.
+                msg.payload = messageText(respuesta);
 
-                msg.payload = content;
-                msg.state.status = "COMPLETED";
-                msg.state.next_node = null;
+                // Solo marcamos COMPLETED si nadie había decidido ya un final
+                // (por ejemplo MAX_ITERATIONS desde el router).
+                if (!isTerminal(state)) {
+                    state.status = "COMPLETED";
+                }
+                state.next_node = null;
 
                 node.status({ fill: "green", shape: "dot", text: "completed" });
                 send(msg);
