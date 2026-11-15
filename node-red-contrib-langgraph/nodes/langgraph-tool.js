@@ -7,11 +7,13 @@
  *
  * ¿Cómo se hablan?
  *   1. El agente anota en el expediente (msg.state.tool_request) qué
- *      herramienta quiere usar y con qué dato. Eso lo puede hacer un nodo
- *      Function, un Change o el propio LLM con una convención de texto.
+ *      herramienta quiere usar y con qué dato. Lo hace el nodo LLM cuando
+ *      el modelo pide una herramienta de forma nativa; también se puede
+ *      armar a mano con un nodo Function o un Change.
  *   2. El router manda el mensaje por su salida "tool".
  *   3. Este nodo ve el pedido, llama al flujo por HTTP y guarda la respuesta
- *      en el expediente como si fuera un mensaje más.
+ *      en el expediente como mensaje de herramienta (con su identificador)
+ *      o como mensaje de usuario si el pedido vino del modo manual.
  *   4. Deja el destino en "llm" para que el modelo lea el resultado y
  *      responda.
  *
@@ -22,7 +24,7 @@
  */
 module.exports = function (RED) {
     const { assertState, appendMessage } = require("../lib/state");
-    const { HumanMessage } = require("@langchain/core/messages");
+    const { HumanMessage, ToolMessage } = require("@langchain/core/messages");
 
     function LangGraphToolNode(config) {
         RED.nodes.createNode(this, config);
@@ -30,6 +32,10 @@ module.exports = function (RED) {
 
         // Nombre con el que el agente pide esta herramienta.
         node.toolName = (config.toolName || "").trim();
+        // Texto que lee el modelo para saber cuándo conviene usar esta
+        // herramienta. Sin descripción, el modelo igual la ve, pero elige
+        // mucho mejor si le explicamos para qué sirve.
+        node.toolDescription = (config.description || "").trim();
         // Dirección del flujo que hace el trabajo (por ejemplo
         // http://localhost:1880/tool/clima).
         node.url = (config.url || "").trim();
@@ -70,6 +76,43 @@ module.exports = function (RED) {
                 return;
             }
 
+            // Cómo se guarda el resultado depende de cómo llegó el pedido:
+            //   - con "id": el modelo lo pidió de forma nativa y espera un
+            //     mensaje de herramienta identificado. Si guardáramos otra
+            //     cosa, el proveedor rechazaría la próxima llamada.
+            //   - sin "id": el pedido se armó a mano (Function/Change). Se
+            //     guarda como mensaje de usuario, que funciona con todos.
+            const guardarResultado = function (texto) {
+                if (pedido.id) {
+                    appendMessage(state, new ToolMessage({
+                        content: texto,
+                        tool_call_id: pedido.id,
+                        name: node.toolName
+                    }));
+                } else {
+                    appendMessage(state, new HumanMessage(
+                        '[Resultado de la herramienta "' + node.toolName + '"] ' + texto
+                    ));
+                }
+            };
+
+            const guardarFallo = function (texto) {
+                if (pedido.id) {
+                    appendMessage(state, new ToolMessage({
+                        content:
+                            'La herramienta "' + node.toolName + '" falló: ' + texto +
+                            ". No vuelvas a pedir esta herramienta; respondé al usuario " +
+                            "explicando que el dato no está disponible.",
+                        tool_call_id: pedido.id,
+                        name: node.toolName
+                    }));
+                } else {
+                    appendMessage(state, new HumanMessage(
+                        '[La herramienta "' + node.toolName + '" falló] ' + texto
+                    ));
+                }
+            };
+
             // Ya tomamos el pedido: lo borramos para que no se ejecute dos
             // veces si hay más herramientas encadenadas detrás.
             delete state.tool_request;
@@ -88,7 +131,12 @@ module.exports = function (RED) {
                 direccion += separador + "input=" + encodeURIComponent(pedido.input || "");
             } else {
                 opciones.headers = { "Content-Type": "application/json" };
-                opciones.body = JSON.stringify(pedido);
+                // Al flujo le mandamos solo lo que necesita. El identificador
+                // es un asunto interno entre el modelo y el grafo.
+                opciones.body = JSON.stringify({
+                    name: pedido.name,
+                    input: pedido.input || ""
+                });
             }
 
             fetch(direccion, opciones)
@@ -116,14 +164,7 @@ module.exports = function (RED) {
                 })
                 .then(function (resultado) {
                     const texto = String(resultado || "").trim() || "(sin respuesta)";
-
-                    // Guardamos el resultado como un mensaje más del historial.
-                    // Usamos un mensaje "human" a propósito: algunos proveedores
-                    // solo aceptan mensajes de herramienta cuando el modelo pidió
-                    // la herramienta a su manera. Así funciona con todos.
-                    appendMessage(state, new HumanMessage(
-                        '[Resultado de la herramienta "' + node.toolName + '"] ' + texto
-                    ));
+                    guardarResultado(texto);
 
                     state.next_node = "llm";
                     node.status({ fill: "green", shape: "dot", text: "ok" });
@@ -134,9 +175,7 @@ module.exports = function (RED) {
                     // Si la herramienta falla, no cortamos el grafo: se lo
                     // contamos al modelo para que pueda explicarlo o intentar
                     // otra cosa.
-                    appendMessage(state, new HumanMessage(
-                        '[La herramienta "' + node.toolName + '" falló] ' + err.message
-                    ));
+                    guardarFallo(err.message);
 
                     state.next_node = "llm";
                     node.status({ fill: "red", shape: "dot", text: "falló" });

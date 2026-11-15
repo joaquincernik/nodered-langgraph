@@ -8,6 +8,10 @@
         <input type="text" id="node-input-toolName" placeholder="clima">
     </div>
     <div class="form-row">
+        <label for="node-input-description"><i class="fa fa-align-left"></i> Descripción</label>
+        <input type="text" id="node-input-description" placeholder="Consulta el clima actual de una ciudad">
+    </div>
+    <div class="form-row">
         <label for="node-input-url"><i class="fa fa-link"></i> Dirección del flujo</label>
         <input type="text" id="node-input-url" placeholder="http://localhost:1880/tool/clima">
     </div>
@@ -25,8 +29,10 @@
     </div>
     <div class="form-tips">
         Llama a un flujo de Node-RED que hace de herramienta y guarda la
-        respuesta en el expediente. Solo actúa cuando el pedido es para la
-        herramienta con este mismo nombre; si no, deja pasar el mensaje.
+        respuesta en el expediente. El nodo LLM le muestra la descripción al
+        modelo para que sepa cuándo usarla. Solo actúa cuando el pedido es
+        para la herramienta con este mismo nombre; si no, deja pasar el
+        mensaje.
     </div>
 </script>
 
@@ -41,32 +47,43 @@
     <h3>Cómo se hablan</h3>
     <ol>
         <li>
-            Alguien anota en el expediente qué se necesita:
-            <code>msg.state.tool_request = { name: "clima", input: "Rosario" }</code>.
-            Lo puede escribir un nodo Function, un Change, o el propio modelo
-            siguiendo una convención de texto.
+            El nodo LLM le presenta al modelo las herramientas de su misma
+            pestaña, con el nombre y la descripción de cada una. Si el modelo
+            decide usar una, escribe el pedido en el expediente:
+            <code>msg.state.tool_request = { name: "clima", input: "Rosario", id: "..." }</code>.
+            El <code>id</code> lo pone el proveedor y sirve para emparejar la
+            respuesta con el pedido.
         </li>
         <li>El <code>langgraph-router</code> manda el mensaje por su salida <b>tool</b>.</li>
         <li>
             Este nodo revisa el pedido. Si el nombre coincide con el suyo,
             llama al flujo por HTTP, toma la respuesta y la guarda en el
-            expediente como un mensaje más.
+            expediente.
         </li>
         <li>
             Deja <code>next_node = "llm"</code> y el mensaje sigue viaje, para
             que el modelo lea el resultado y responda.
         </li>
     </ol>
+    <p>
+        El pedido también se puede armar a mano con un nodo Function o un
+        Change, sin <code>id</code>. Es el modo manual, útil para proveedores
+        que no soportan herramientas nativas.
+    </p>
 
     <h3>Qué se guarda en el historial</h3>
     <p>
-        El resultado se agrega como un mensaje de usuario con este formato:
+        Si el pedido vino del modelo (trae <code>id</code>), el resultado se
+        guarda como <b>mensaje de herramienta</b>, con ese identificador. Es
+        lo que el proveedor espera y lo que permite seguir la conversación sin
+        errores.
+    </p>
+    <p>
+        Si el pedido se armó a mano, se guarda como mensaje de usuario:
     </p>
     <pre>[Resultado de la herramienta "clima"] Soleado, 24 °C</pre>
     <p>
-        Se usa un mensaje de usuario a propósito: algunos proveedores solo
-        aceptan mensajes de herramienta cuando el modelo la pidió a su manera.
-        Con este formato funciona con todos y el modelo entiende igual.
+        Así el nodo sirve en los dos mundos sin obligar a elegir uno.
     </p>
 
     <h3>Qué tiene que devolver el flujo</h3>
@@ -112,8 +129,15 @@ http response</pre>
         <li>
             <b>Nombre de la herramienta</b> — es la etiqueta que usa el agente
             para pedirla. Tiene que coincidir con el <code>name</code> del
-            pedido. Si no coincide, el nodo deja pasar el mensaje sin tocarlo,
-            así se pueden encadenar varias herramientas.
+            pedido y ser un nombre simple (letras, números, guion o guion bajo).
+            Si no coincide, el nodo deja pasar el mensaje sin tocarlo, así se
+            pueden encadenar varias herramientas.
+        </li>
+        <li>
+            <b>Descripción</b> — lo que lee el modelo para decidir cuándo usar
+            esta herramienta. Conviene escribir para qué sirve y qué dato
+            espera, por ejemplo: “Consulta el clima actual de una ciudad”.
+            Sin descripción igual funciona, pero el modelo elige peor.
         </li>
         <li>
             <b>Espera máxima</b> — si el flujo no contesta a tiempo, se toma
@@ -138,6 +162,7 @@ http response</pre>
         defaults: {
             name: { value: "" },
             toolName: { value: "", required: true },
+            description: { value: "" },
             url: { value: "", required: true },
             method: { value: "POST" },
             timeout: { value: 15000, validate: RED.validators.number(true) }

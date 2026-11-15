@@ -24,6 +24,11 @@
         <input type="text" id="node-input-nextNode" placeholder="end">
     </div>
     <div class="form-row">
+        <label for="node-input-useTools"><i class="fa fa-wrench"></i> Herramientas</label>
+        <input type="checkbox" id="node-input-useTools" style="display:inline-block;width:auto;vertical-align:top;">
+        <label for="node-input-useTools" style="width:70%;display:inline-block;">Usar las herramientas de esta pestaña</label>
+    </div>
+    <div class="form-row">
         <label for="node-input-apiKey"><i class="fa fa-key"></i> API Key</label>
         <input type="password" id="node-input-apiKey">
     </div>
@@ -32,6 +37,7 @@
         <b>Entrada:</b> si llega <code>msg.userPrompt</code>, se usa como prompt y la respuesta se escribe en <code>msg.payload</code> (modo prompt chaining; no usa <code>msg.state</code>). Si no, usa <code>msg.state.messages</code> (modo grafo).<br>
         <b>System Prompt:</b> Opcional. Se antepone como <code>SystemMessage</code> en cada llamada; no se guarda en <code>msg.state</code>. Se puede sobrescribir por mensaje con <code>msg.systemPrompt</code>.<br>
         <b>Next node:</b> A dónde va el mensaje después de la respuesta (lo lee el <code>langgraph-router</code>). Por defecto <code>end</code>. Se puede pisar por mensaje con <code>msg.nextNode</code>.<br>
+        <b>Herramientas:</b> Si está activado, el nodo busca los <code>langgraph-tool</code> de esta misma pestaña, le muestra al modelo sus nombres y descripciones, y cuando el modelo pide una escribe <code>state.tool_request</code> y <code>next_node = "tool"</code>. Una por vuelta. Si el proveedor no las soporta, avisa y sigue sin ellas.<br>
         <b>Base URL:</b> Opcional. Úsala para servidores locales (Ollama, LM Studio) o proxies corporativos.<br>
         <b>API Key:</b> Orden de búsqueda: credencial del nodo → <code>LLM_API_KEY</code> → variable del proveedor (<code>GROQ_API_KEY</code>, <code>OPENAI_API_KEY</code>, ...).<br>
         <b>Ojo con <code>.env</code>:</b> el contenedor lee las variables al crearse. Si las cambiás, usá <code>docker compose up -d --force-recreate</code>.
@@ -53,7 +59,8 @@
         <li><b>Temperature</b> — Creatividad de la respuesta (default: 0.7).</li>
         <li><b>Base URL</b> — (Opcional) Dirección personalizada del endpoint. Necesaria para modelos locales o proxies corporativos. Dejar en blanco para usar los servidores oficiales del proveedor.</li>
         <li><b>System Prompt</b> — (Opcional) Instrucciones de sistema. Se antepone como <code>SystemMessage</code> en cada invocación (no se persiste en <code>msg.state</code>). Precedencia: <code>msg.systemPrompt</code> &gt; system ya presente en el estado &gt; config del nodo.</li>
-        <li><b>Next node</b> — (Opcional) Destino que el nodo escribe en <code>msg.state.next_node</code> después de responder. El <code>langgraph-router</code> lo usa para elegir la salida. Orden de prioridad: <code>msg.nextNode</code> &gt; este campo &gt; <code>end</code>. Con <code>llm</code> se vuelve a llamar al modelo (bucle); con <code>tool</code> se ejecuta una herramienta (cuando exista); con <code>end</code> termina.</li>
+        <li><b>Next node</b> — (Opcional) Destino que el nodo escribe en <code>msg.state.next_node</code> después de responder. El <code>langgraph-router</code> lo usa para elegir la salida. Orden de prioridad: <code>msg.nextNode</code> &gt; este campo &gt; <code>end</code>. Con <code>llm</code> se vuelve a llamar al modelo (bucle); con <code>tool</code> se ejecuta una herramienta; con <code>end</code> termina. Cuando el modelo pide una herramienta, el destino es <code>tool</code> sin importar este campo.</li>
+        <li><b>Herramientas</b> — Si está activado (por defecto), el nodo busca los nodos <code>langgraph-tool</code> de la misma pestaña y se las presenta al modelo. Si el modelo pide una, el pedido viaja por la salida <code>tool</code> del router. Se ejecuta una por vuelta; si pide varias, se avisa y se usa la primera. Si el proveedor no soporta herramientas, se avisa y se sigue sin ellas.</li>
         <li><b>API Key</b> — Credencial de autenticación (se guarda cifrada). Si no se especifica, el nodo busca una variable de entorno. No es necesaria para la mayoría de los servidores locales.</li>
     </ul>
     <h3>De dónde sale la API Key</h3>
@@ -87,7 +94,8 @@
             temperature: { value: 0.7, validate: RED.validators.number(true) },
             baseUrl: { value: "" },
             systemPrompt: { value: "" },
-            nextNode: { value: "end" }
+            nextNode: { value: "end" },
+            useTools: { value: true }
         },
         credentials: {
             apiKey: { type: "password" }

@@ -8,7 +8,7 @@ En este proyecto se plantea la contribucion al ecosistema nodered tomando como r
 
 * `langgraph-start:` Recibe el input inicial y crea/inicializa el objeto msg.state con variables y un contador de iteraciones (para evitar bucles infinitos).
 
-* `langgraph-llm:` Nodo ejecutor que llama a una API de LLM (ej. OpenAI / Ollama), procesa el prompt con el estado actual e inyecta la respuesta en msg.state.messages.
+* `langgraph-llm:` Nodo ejecutor que llama a una API de LLM (ej. OpenAI / Ollama), procesa el prompt con el estado actual e inyecta la respuesta en msg.state.messages. También descubre las herramientas de su pestaña y lee los pedidos del modelo de forma nativa.
 
 * `langgraph-router:` Nodo condicional con múltiples salidas (puertos). Analiza msg.state (por ejemplo, si el LLM solicitó una herramienta o finalizó) y redirige el flujo.
 
@@ -67,31 +67,67 @@ La idea central del proyecto es que **una herramienta no es código especial**:
 es un flujo normal de Node-RED que recibe un dato, hace su trabajo y devuelve
 una respuesta. El agente lo usa igual que LangGraph usa sus herramientas.
 
-### El pedido
+### Cómo el modelo pide una herramienta
 
-Antes de ir al nodo `langgraph-tool`, el expediente lleva anotado qué hace falta:
+El nodo `langgraph-llm` busca los nodos `langgraph-tool` de **su misma
+pestaña** y le presenta al modelo el nombre y la descripción de cada uno. Si el
+modelo decide usar una, el pedido queda anotado en el expediente:
 
 ```json
 {
   "state": {
-    "tool_request": { "name": "clima", "input": "Rosario" },
+    "tool_request": { "name": "clima", "input": "Rosario, Argentina", "id": "call_..." },
     "next_node": "tool"
   }
 }
 ```
 
-`name` tiene que coincidir con el **nombre de la herramienta** configurado en el
-nodo; `input` es el dato que necesita el flujo. El `langgraph-router` manda el
-mensaje por su salida `tool` y, al terminar, el nodo deja `next_node = "llm"`
-para que el modelo lea el resultado.
+- `name` coincide con el **nombre de la herramienta** configurado en el nodo.
+- `input` es el dato que el modelo eligió mandar.
+- `id` lo pone el proveedor (o el nodo, si el proveedor no lo manda) y sirve
+  para emparejar la respuesta con el pedido.
+
+El `langgraph-router` manda el mensaje por su salida `tool`, el nodo de
+herramienta hace su trabajo y deja `next_node = "llm"` para que el modelo lea
+el resultado y responda.
+
+Reglas prácticas:
+
+- **Una herramienta por vuelta.** Si el modelo pide varias, se ejecuta la
+  primera y se avisa por el log. Así no quedan pedidos sin respuesta.
+- **Solo la misma pestaña.** Si querés que el agente no vea una herramienta,
+  movela a otra pestaña.
+- **La descripción importa.** Es lo que lee el modelo para decidir cuándo
+  usarla. Conviene escribir para qué sirve y qué dato espera.
+- **Se puede apagar.** El campo *Herramientas* del nodo LLM permite
+  desactivarlas para un proveedor que no las soporta o para aislar un problema.
+
+### Si el proveedor no soporta herramientas
+
+El nodo avisa por el log y reintenta una vez sin ellas. El grafo sigue
+funcionando, solo que el modelo ya no puede pedir herramientas por su cuenta.
+
+Para esos casos queda el **modo manual**: un nodo Function o un Change arma el
+pedido sin `id`, y el modelo lo recibe como texto. Es la misma idea de antes,
+sin depender del proveedor.
 
 ### El flujo herramienta
 
-Se arma con nodos comunes, en la misma pestaña o en otra:
+Se arma con nodos comunes. El nodo `langgraph-tool` tiene que estar en la misma
+pestaña que el LLM; el flujo HTTP que ese nodo llama puede vivir en cualquier
+pestaña. La demo del clima usa esta cadena:
 
 ```
-http in (POST /tool/clima)  →  function (hace el trabajo)  →  http response
+http in (POST /tool/clima) → buscar ciudad → consultar clima → http response
 ```
+
+No hace falta clave ni registro: usa **Open-Meteo**, un servicio gratuito.
+El pedido se escribe como `Ciudad, País`. Si no se indica país, se intenta
+Argentina y, si la ciudad no aparece ahí, se usa el resultado más relevante del
+mundo (el país se muestra igual en la respuesta). Si el país se indicó y la
+ciudad no está en él, el flujo avisa y sugiere dónde sí existe. Para los países
+más comunes, el nombre se puede escribir en español o en inglés
+(por ejemplo, `España` o `Spain`).
 
 Puede devolver texto plano, `{ "output": "..." }` o cualquier JSON. Se prueba
 solo, sin el agente:
@@ -99,22 +135,34 @@ solo, sin el agente:
 ```bash
 curl -X POST http://localhost:1880/tool/clima \
   -H "Content-Type: application/json" \
-  -d '{"name":"clima","input":"Rosario"}'
+  -d '{"name":"clima","input":"Rosario, Argentina"}'
 ```
+
+Respuesta de ejemplo:
+
+```json
+{"output":"Clima en Rosario, Santa Fe (Argentina): Nublado, 23 °C (sensación 24 °C). Humedad 74 %, viento 13 km/h del sur. Hoy: máxima 29 °C, mínima 20 °C."}
+```
+
+La herramienta es reemplazable: mañana ese mismo flujo puede llamar a otra API,
+a una base de datos o a cualquier cálculo, sin tocar el agente.
 
 ### Qué guarda el nodo
 
-La respuesta se agrega al historial como un mensaje de usuario:
+Hay dos casos, según cómo llegó el pedido:
 
-```
-[Resultado de la herramienta "clima"] Soleado, 24 °C
-```
+- **Pedido del modelo (trae `id`):** se guarda un **mensaje de herramienta**
+  (`ToolMessage`) con ese identificador. Es lo que el proveedor espera y lo que
+  permite seguir la conversación sin errores.
+- **Pedido manual (sin `id`):** se guarda un mensaje de usuario:
 
-Se usa un mensaje de usuario a propósito: algunos proveedores solo aceptan
-mensajes de herramienta cuando el modelo la pidió a su manera. Así el resultado
-funciona con todos y el modelo lo entiende igual. Si el flujo falla, la falla se
-guarda igual como mensaje y el modelo decide qué hacer; el bucle sigue limitado
-por `max_iterations`.
+  ```
+  [Resultado de la herramienta "clima"] Nublado, 23 °C
+  ```
+
+Si el flujo falla, la falla se guarda igual, con el mismo formato, y se le pide
+al modelo que no insista con esa herramienta. El bucle sigue limitado por
+`max_iterations`.
 
 ## Puesta en marcha
 

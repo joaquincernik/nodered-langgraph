@@ -11,13 +11,76 @@
  *   mapStoredMessagesToChatMessages y añade la respuesta al historial.
  */
 module.exports = function (RED) {
+    const crypto = require("crypto");
     const { initChatModel } = require("langchain/chat_models/universal");
     const {
         HumanMessage,
         SystemMessage,
+        AIMessage,
         mapStoredMessagesToChatMessages
     } = require("@langchain/core/messages");
     const { assertState, appendMessage } = require("../lib/state");
+
+    // Los nombres de herramienta viajan al proveedor como nombres de función.
+    // Si tuvieran espacios o símbolos raros, el pedido se rechaza. Mejor
+    // detectarlo acá y avisar que fallar en la llamada.
+    const TOOL_NAME_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+
+    /**
+     * Saca el dato de entrada de lo que devolvió el modelo. La convención del
+     * proyecto es un único campo "input", pero algunos modelos usan otro
+     * nombre; en ese caso tomamos el primer texto que encontremos.
+     */
+    function toolInputFromArgs(args) {
+        if (typeof args === "string") {
+            return args;
+        }
+        if (!args || typeof args !== "object") {
+            return "";
+        }
+        if (typeof args.input === "string") {
+            return args.input;
+        }
+        if (args.input !== undefined && args.input !== null) {
+            return String(args.input);
+        }
+        const valores = Object.values(args);
+        for (let i = 0; i < valores.length; i++) {
+            if (typeof valores[i] === "string") {
+                return valores[i];
+            }
+        }
+        return "";
+    }
+
+    /**
+     * ¿El error tiene pinta de "este proveedor no sabe usar herramientas"?
+     * Se usa para reintentar una vez sin ellas, en vez de romper el flujo.
+     */
+    function looksLikeToolUnsupported(err) {
+        const texto = String(err && err.message ? err.message : err).toLowerCase();
+        const mencionaHerramientas = /tool|function/.test(texto);
+        const mencionaFaltaDeSoporte =
+            /not support|unsupported|does not support|not allowed|not available|unknown parameter|invalid parameter/.test(texto);
+        return mencionaHerramientas && mencionaFaltaDeSoporte;
+    }
+
+    /**
+     * Copia el mensaje del modelo sin pedidos de herramienta. Se usa cuando
+     * no vamos a ejecutarlas: guardar un pedido sin su respuesta haría que
+     * el proveedor rechace la próxima llamada.
+     */
+    function sinHerramientas(response) {
+        const kwargs = Object.assign({}, response.additional_kwargs || {});
+        delete kwargs.tool_calls;
+        return new AIMessage({
+            content: response.content,
+            additional_kwargs: kwargs,
+            response_metadata: response.response_metadata || {},
+            id: response.id,
+            usage_metadata: response.usage_metadata
+        });
+    }
 
     // Cada proveedor tiene su propia variable de entorno "de toda la vida".
     // Las listamos para no depender de la magia interna de LangChain: así el
@@ -91,6 +154,13 @@ module.exports = function (RED) {
         // A dónde va el mensaje después de esta respuesta. El router lo lee
         // para decidir por qué salida mandarlo. Vacío equivale a "end".
         node.nextNode = (config.nextNode || "").trim() || "end";
+        // ¿Le presentamos al modelo las herramientas de esta pestaña?
+        // Se puede apagar para proveedores que no las soportan o para
+        // aislar un problema sin desarmar el flujo.
+        node.useTools = config.useTools !== false && config.useTools !== "false";
+        // Para no repetir el mismo aviso en cada vuelta.
+        node._toolsLogged = false;
+        node._herramientasInvalidas = {};
 
         // De dónde sale la clave: credencial del nodo > LLM_API_KEY > variable
         // propia del proveedor. Lo dejamos anotado en el log (sin mostrar la
@@ -136,6 +206,75 @@ module.exports = function (RED) {
                 );
             }
             return node._modelPromise;
+        };
+
+        /**
+         * Busca las herramientas que viven en la misma pestaña que este nodo.
+         * La regla es simple a propósito: si arrastraste la herramienta al
+         * lado del agente, pertenece a ese agente. Nada de nombres de grupo
+         * ni configuración extra.
+         */
+        node._discoverTools = function () {
+            const encontradas = [];
+            const vistos = {};
+            if (typeof RED.nodes.eachNode !== "function") {
+                return encontradas;
+            }
+            RED.nodes.eachNode(function (n) {
+                if (!n || n.type !== "langgraph-tool" || n.z !== node.z) {
+                    return;
+                }
+                const nombre = typeof n.toolName === "string" ? n.toolName.trim() : "";
+                if (!nombre) {
+                    return;
+                }
+                if (!TOOL_NAME_PATTERN.test(nombre)) {
+                    if (!node._herramientasInvalidas[nombre]) {
+                        node._herramientasInvalidas[nombre] = true;
+                        node.warn(
+                            "langgraph-llm: la herramienta '" + nombre +
+                            "' tiene un nombre inválido (letras, números, guion o guion bajo). Se ignora."
+                        );
+                    }
+                    return;
+                }
+                if (vistos[nombre]) {
+                    return;
+                }
+                vistos[nombre] = true;
+                encontradas.push({
+                    name: nombre,
+                    description: String(n.description || "").trim() || ("Herramienta " + nombre),
+                    parameters: {
+                        type: "object",
+                        properties: {
+                            input: {
+                                type: "string",
+                                description: "Dato que necesita la herramienta"
+                            }
+                        },
+                        required: ["input"]
+                    }
+                });
+            });
+            return encontradas;
+        };
+
+        /**
+         * Convierte las herramientas al formato que entienden los proveedores
+         * (el mismo que usa OpenAI para "function calling").
+         */
+        node._toolSchemas = function (tools) {
+            return tools.map(function (t) {
+                return {
+                    type: "function",
+                    function: {
+                        name: t.name,
+                        description: t.description,
+                        parameters: t.parameters
+                    }
+                };
+            });
         };
 
         node.on("input", function (msg, send, done) {
@@ -194,9 +333,50 @@ module.exports = function (RED) {
                 messages.unshift(new SystemMessage(node.systemPrompt));
             }
 
+            // Herramientas nativas: solo en modo grafo y si están activadas.
+            // Se buscan en cada llamada porque son parte del flujo desplegado.
+            const herramientas =
+                !chained && node.useTools ? node._discoverTools() : [];
+            const esquemas = node._toolSchemas(herramientas);
+            let herramientasActivas = esquemas.length > 0;
+
+            if (herramientas.length && !node._toolsLogged) {
+                node.log(
+                    "herramientas disponibles en esta pestaña: " +
+                    herramientas.map(function (t) { return t.name; }).join(", ")
+                );
+                node._toolsLogged = true;
+            }
+
             node._getModel()
                 .then(function (model) {
-                    return model.invoke(messages);
+                    let ejecutor = model;
+                    if (esquemas.length > 0) {
+                        try {
+                            ejecutor = model.bindTools(esquemas);
+                        } catch (err) {
+                            herramientasActivas = false;
+                            node.warn(
+                                "langgraph-llm: el proveedor no aceptó las herramientas (" +
+                                err.message + "). Se sigue sin ellas."
+                            );
+                            ejecutor = model;
+                        }
+                    }
+                    return ejecutor.invoke(messages).catch(function (err) {
+                        // Algunos proveedores solo avisan al momento de llamar.
+                        // Reintentamos una vez sin herramientas para no cortar
+                        // el grafo por una limitación del proveedor.
+                        if (herramientasActivas && looksLikeToolUnsupported(err)) {
+                            herramientasActivas = false;
+                            node.warn(
+                                "langgraph-llm: el proveedor no soporta herramientas (" +
+                                err.message + "). Se reintenta sin ellas."
+                            );
+                            return model.invoke(messages);
+                        }
+                        throw err;
+                    });
                 })
                 .then(function (response) {
                     if (chained) {
@@ -204,26 +384,111 @@ module.exports = function (RED) {
                         msg.payload = response.text;
                         node.status({ fill: "green", shape: "dot", text: "chained" });
                     } else {
-                        // Modo grafo: response es un AIMessage; lo guardamos en
-                        // el historial con el mismo formato que usa start.
-                        appendMessage(state, response);
-                        state.iterations = (state.iterations || 0) + 1;
+                        const llamadas =
+                            herramientasActivas && Array.isArray(response.tool_calls)
+                                ? response.tool_calls
+                                : [];
 
-                        // Destino para el router. Manda lo que venga en el
-                        // mensaje (útil para decidir sobre la marcha); si no,
-                        // lo configurado en el nodo; si tampoco hay, se
-                        // termina. Así el grafo nunca queda sin salida.
-                        const pedido =
-                            typeof msg.nextNode === "string"
-                                ? msg.nextNode.trim()
-                                : "";
-                        state.next_node = pedido || node.nextNode || "end";
+                        if (llamadas.length > 0) {
+                            const primera = llamadas[0];
+                            const conocida = herramientas.some(function (t) {
+                                return t.name === primera.name;
+                            });
 
-                        node.status({
-                            fill: "green",
-                            shape: "dot",
-                            text: "iter " + state.iterations + " → " + state.next_node
-                        });
+                            if (!conocida) {
+                                // El modelo inventó una herramienta. No la
+                                // ejecutamos y guardamos la respuesta limpia:
+                                // un pedido sin respuesta rompería la próxima
+                                // llamada al proveedor.
+                                node.warn(
+                                    "langgraph-llm: el modelo pidió la herramienta desconocida '" +
+                                    primera.name + "'. Se ignora y se termina."
+                                );
+                                appendMessage(state, sinHerramientas(response));
+                                state.iterations = (state.iterations || 0) + 1;
+                                state.next_node = "end";
+                                node.status({
+                                    fill: "grey",
+                                    shape: "dot",
+                                    text: "herramienta desconocida"
+                                });
+                            } else {
+                                // Si el proveedor no mandó identificador, le
+                                // ponemos uno para poder emparejar el resultado.
+                                if (!primera.id) {
+                                    primera.id = "call_" + crypto.randomUUID();
+                                }
+
+                                let guardar = response;
+                                if (llamadas.length > 1) {
+                                    // Ejecutamos una sola. Guardamos solo esa
+                                    // para que el proveedor no espere respuestas
+                                    // que no vamos a dar.
+                                    node.warn(
+                                        "langgraph-llm: el modelo pidió " + llamadas.length +
+                                        " herramientas; se ejecuta solo '" + primera.name + "'."
+                                    );
+                                    const kwargs = Object.assign({}, response.additional_kwargs || {});
+                                    delete kwargs.tool_calls;
+                                    guardar = new AIMessage({
+                                        content: response.content,
+                                        tool_calls: [primera],
+                                        additional_kwargs: kwargs,
+                                        response_metadata: response.response_metadata || {},
+                                        id: response.id,
+                                        usage_metadata: response.usage_metadata
+                                    });
+                                }
+
+                                appendMessage(state, guardar);
+                                state.iterations = (state.iterations || 0) + 1;
+                                state.tool_request = {
+                                    name: primera.name,
+                                    input: toolInputFromArgs(primera.args),
+                                    id: primera.id
+                                };
+                                state.next_node = "tool";
+                                node.status({
+                                    fill: "blue",
+                                    shape: "dot",
+                                    text: "iter " + state.iterations + " → tool (" + primera.name + ")"
+                                });
+                            }
+                        } else {
+                            // Sin pedido de herramienta: es una respuesta normal.
+                            // Si el proveedor igual devolvió pedidos (por ejemplo,
+                            // porque las herramientas estaban apagadas), los
+                            // quitamos antes de guardar.
+                            const teniaPedidos =
+                                (Array.isArray(response.tool_calls) && response.tool_calls.length > 0) ||
+                                (response.additional_kwargs && response.additional_kwargs.tool_calls);
+                            let guardar = response;
+                            if (teniaPedidos) {
+                                node.warn(
+                                    "langgraph-llm: se ignoró un pedido de herramienta porque las herramientas no están activas."
+                                );
+                                guardar = sinHerramientas(response);
+                            }
+
+                            appendMessage(state, guardar);
+                            state.iterations = (state.iterations || 0) + 1;
+
+                            // Destino para el router. Manda lo que venga en el
+                            // mensaje (útil para decidir sobre la marcha); si no,
+                            // lo configurado en el nodo; si tampoco hay, se
+                            // termina. Así el grafo nunca queda sin salida.
+                            const pedido =
+                                typeof msg.nextNode === "string"
+                                    ? msg.nextNode.trim()
+                                    : "";
+                            state.next_node = pedido || node.nextNode || "end";
+
+                            node.status({
+                                fill: "green",
+                                shape: "dot",
+                                text: "iter " + state.iterations + " → " + state.next_node
+                            });
+                        }
                     }
                     send(msg);
                     if (done) { done(); }
