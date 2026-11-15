@@ -16,12 +16,28 @@
         "env": []
     },
     {
+        "id": "504eb682c9c04e5f",
+        "type": "tab",
+        "label": "3-Bucle con límite",
+        "disabled": false,
+        "info": "Demuestra el guardia del router: el LLM pide volver a pensar y el router corta al llegar al límite de vueltas.",
+        "env": []
+    },
+    {
+        "id": "ca0a860c66654d80",
+        "type": "tab",
+        "label": "4-Bucle con criterio",
+        "disabled": false,
+        "info": "El bucle no gasta todas las vueltas: un nodo Function lee la respuesta y decide si ya esta lista. El limite de 5 queda como red de seguridad.",
+        "env": []
+    },
+    {
         "id": "5f3b72fd0e39f12f",
         "type": "langgraph-start",
         "z": "6e0bbe9565d69b26",
         "name": "",
         "maxIterations": 5,
-        "x": 360,
+        "x": 280,
         "y": 160,
         "wires": [
             [
@@ -37,7 +53,8 @@
         "model": "groq:openai/gpt-oss-120b",
         "temperature": 0.7,
         "baseUrl": "",
-        "x": 560,
+        "systemPrompt": "",
+        "x": 530,
         "y": 160,
         "wires": [
             [
@@ -62,7 +79,7 @@
         "id": "105e148aa469c387",
         "type": "inject",
         "z": "6e0bbe9565d69b26",
-        "name": "",
+        "name": "Prompt",
         "props": [
             {
                 "p": "payload"
@@ -77,7 +94,7 @@
         "once": false,
         "onceDelay": 0.1,
         "topic": "",
-        "payload": "Hola Crack, como estas ?",
+        "payload": "Hola que dia es hoy ?",
         "payloadType": "str",
         "x": 90,
         "y": 160,
@@ -348,6 +365,234 @@
         "statusType": "auto",
         "x": 1020,
         "y": 280,
+        "wires": []
+    },
+    {
+        "id": "43b5fd5c8b9c4719",
+        "type": "inject",
+        "z": "504eb682c9c04e5f",
+        "name": "Consulta",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "Contame un chiste corto sobre fútbol. Pero con jergas argentinas",
+        "payloadType": "str",
+        "x": 140,
+        "y": 160,
+        "wires": [
+            [
+                "a83f79c45f5146e2"
+            ]
+        ]
+    },
+    {
+        "id": "a83f79c45f5146e2",
+        "type": "langgraph-start",
+        "z": "504eb682c9c04e5f",
+        "name": "",
+        "maxIterations": 3,
+        "x": 330,
+        "y": 160,
+        "wires": [
+            [
+                "7d9bf2fbf0ae4c2a"
+            ]
+        ]
+    },
+    {
+        "id": "7d9bf2fbf0ae4c2a",
+        "type": "langgraph-llm",
+        "z": "504eb682c9c04e5f",
+        "name": "llm",
+        "model": "groq:openai/gpt-oss-120b",
+        "temperature": 0.5,
+        "baseUrl": "",
+        "systemPrompt": "Sos un asistente breve. En cada vuelta mejorá la respuesta anterior, sin repetirla.",
+        "nextNode": "llm",
+        "x": 550,
+        "y": 160,
+        "wires": [
+            [
+                "005d15e49d184fe4"
+            ]
+        ]
+    },
+    {
+        "id": "005d15e49d184fe4",
+        "type": "langgraph-router",
+        "z": "504eb682c9c04e5f",
+        "name": "router",
+        "x": 760,
+        "y": 160,
+        "wires": [
+            [
+                "058e5aba22bc46f5"
+            ],
+            [
+                "7d9bf2fbf0ae4c2a"
+            ],
+            []
+        ]
+    },
+    {
+        "id": "058e5aba22bc46f5",
+        "type": "langgraph-end",
+        "z": "504eb682c9c04e5f",
+        "name": "",
+        "x": 960,
+        "y": 240,
+        "wires": [
+            [
+                "a52d130b886b4c3b"
+            ]
+        ]
+    },
+    {
+        "id": "a52d130b886b4c3b",
+        "type": "debug",
+        "z": "504eb682c9c04e5f",
+        "name": "Resultado final",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1130,
+        "y": 240,
+        "wires": []
+    },
+    {
+        "id": "b92773cb3f2a4d0a",
+        "type": "inject",
+        "z": "ca0a860c66654d80",
+        "name": "Consulta",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "Contame un chiste corto sobre fútbol.",
+        "payloadType": "str",
+        "x": 140,
+        "y": 160,
+        "wires": [
+            [
+                "ee91f8d3411a49da"
+            ]
+        ]
+    },
+    {
+        "id": "ee91f8d3411a49da",
+        "type": "langgraph-start",
+        "z": "ca0a860c66654d80",
+        "name": "",
+        "maxIterations": 5,
+        "x": 320,
+        "y": 160,
+        "wires": [
+            [
+                "567d3d6d15bc4c5f"
+            ]
+        ]
+    },
+    {
+        "id": "567d3d6d15bc4c5f",
+        "type": "langgraph-llm",
+        "z": "ca0a860c66654d80",
+        "name": "llm",
+        "model": "groq:openai/gpt-oss-120b",
+        "temperature": 0.5,
+        "baseUrl": "",
+        "systemPrompt": "Sos un asistente breve. En cada vuelta mejorá el chiste anterior, sin repetirlo. Cuando consideres que ya está listo, agregá el símbolo ✅ al final de tu respuesta.",
+        "nextNode": "llm",
+        "x": 520,
+        "y": 160,
+        "wires": [
+            [
+                "cb3a47481de64985"
+            ]
+        ]
+    },
+    {
+        "id": "cb3a47481de64985",
+        "type": "function",
+        "z": "ca0a860c66654d80",
+        "name": "¿Ya está listo?",
+        "func": "// Este nodo lee la ultima respuesta y decide si el bucle sigue o termina.\n// El modelo marca con el simbolo de tilde verde cuando considera que ya esta.\n// Pedimos al menos dos vueltas: la primera es un borrador, la segunda la mejora.\n\nconst mensajes = msg.state.messages || [];\nlet respuestas = 0;\nlet ultima = null;\n\nfor (const m of mensajes) {\n    const tipo = m && (m.type || m.role);\n    if (tipo === \"ai\" || tipo === \"assistant\") {\n        respuestas++;\n        ultima = m;\n    }\n}\n\nconst contenido = ultima ? (ultima.data ? ultima.data.content : ultima.content) : \"\";\nconst texto = typeof contenido === \"string\" ? contenido : JSON.stringify(contenido || \"\");\n\nif (respuestas >= 2 && texto.indexOf(\"✅\") !== -1) {\n    // Ya esta listo: sacamos la marca para que la respuesta final quede limpia.\n    const limpio = texto.replace(/✅/g, \"\").trim();\n    if (ultima.data) { ultima.data.content = limpio; } else { ultima.content = limpio; }\n    msg.state.next_node = \"end\";\n    node.status({ fill: \"green\", shape: \"dot\", text: \"criterio cumplido\" });\n} else if (respuestas >= 2) {\n    // Ya hubo mejora, pero el modelo no marco el final: otra vuelta.\n    msg.state.next_node = \"llm\";\n    node.status({ fill: \"yellow\", shape: \"dot\", text: \"falta la marca\" });\n} else {\n    // Primera respuesta: siempre dejamos que haya una segunda.\n    msg.state.next_node = \"llm\";\n    node.status({ fill: \"grey\", shape: \"dot\", text: \"borrador\" });\n}\n\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 720,
+        "y": 160,
+        "wires": [
+            [
+                "e6cc6ae9292b4001"
+            ]
+        ]
+    },
+    {
+        "id": "e6cc6ae9292b4001",
+        "type": "langgraph-router",
+        "z": "ca0a860c66654d80",
+        "name": "router",
+        "x": 900,
+        "y": 160,
+        "wires": [
+            [
+                "26ab8af50c5b4e76"
+            ],
+            [
+                "567d3d6d15bc4c5f"
+            ],
+            []
+        ]
+    },
+    {
+        "id": "26ab8af50c5b4e76",
+        "type": "langgraph-end",
+        "z": "ca0a860c66654d80",
+        "name": "",
+        "x": 1080,
+        "y": 240,
+        "wires": [
+            [
+                "bc093e6483c54bee"
+            ]
+        ]
+    },
+    {
+        "id": "bc093e6483c54bee",
+        "type": "debug",
+        "z": "ca0a860c66654d80",
+        "name": "Resultado final",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1280,
+        "y": 240,
         "wires": []
     }
 ]

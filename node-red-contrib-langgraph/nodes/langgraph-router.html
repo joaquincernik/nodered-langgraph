@@ -1,0 +1,75 @@
+<script type="text/html" data-template-name="langgraph-router">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Nombre</label>
+        <input type="text" id="node-input-name" placeholder="Nombre del nodo">
+    </div>
+    <div class="form-tips">
+        Lee <code>msg.state</code> y decide por cuál salida sigue el grafo.
+        Las salidas son fijas, en este orden:<br>
+        <b>0 · end</b> — terminar &nbsp;·&nbsp;
+        <b>1 · llm</b> — volver a pensar &nbsp;·&nbsp;
+        <b>2 · tool</b> — ejecutar una herramienta.
+    </div>
+</script>
+
+<script type="text/html" data-help-name="langgraph-router">
+    <p>
+        Nodo de decisión inspirado en las aristas condicionales de LangGraph.
+        Mira el expediente (<code>msg.state</code>) y manda el mensaje por una
+        de sus tres salidas.
+    </p>
+    <h3>Salidas (siempre en este orden)</h3>
+    <ul>
+        <li><b>0 · end</b> — el grafo terminó, se alcanzó el límite de vueltas, o el destino es desconocido.</li>
+        <li><b>1 · llm</b> — hay que volver a llamar al modelo.</li>
+        <li><b>2 · tool</b> — hay que ejecutar una herramienta (queda preparado para la etapa siguiente).</li>
+    </ul>
+    <h3>Orden de decisión</h3>
+    <ol>
+        <li>Si <code>iterations &gt;= max_iterations</code> → sale por <b>end</b> y deja <code>status = "MAX_ITERATIONS"</code>.</li>
+        <li>Si el estado ya es final (<code>COMPLETED</code>, <code>MAX_ITERATIONS</code>, <code>ERROR</code> o <code>INTERRUPTED</code>) → sale por <b>end</b>.</li>
+        <li>Si <code>next_node</code> es <code>"llm"</code> → sale por <b>llm</b>.</li>
+        <li>Si <code>next_node</code> es <code>"tool"</code> → sale por <b>tool</b>.</li>
+        <li>Si <code>next_node</code> es <code>"end"</code> o está vacío → sale por <b>end</b>.</li>
+        <li>Cualquier otro valor → sale por <b>end</b>, con un aviso en el log y <code>next_node</code> corregido a <code>"end"</code>.</li>
+    </ol>
+    <p>
+        El guardia de vueltas va <b>primero</b> a propósito: aunque el modelo
+        quiera seguir, si ya se agotó el presupuesto, el bucle se corta.
+    </p>
+    <p>
+        El router <b>no</b> escribe el historial ni suma vueltas: eso lo hace el
+        nodo LLM. Solo lee el estado y, cuando corta por límite, deja constancia
+        en <code>status</code>.
+    </p>
+    <h3>Ejemplo de bucle</h3>
+    <pre>
+inject → start → llm ─────────▶ router
+                   ▲              │
+                   │   salida 1   │
+                   └──────────────┘
+                                  │ salida 0
+                                  ▼
+                                 end</pre>
+</script>
+
+<script>
+    RED.nodes.registerType("langgraph-router", {
+        category: "langgraph",
+        color: "#a56bd6",
+        defaults: {
+            name: { value: "" }
+        },
+        inputs: 1,
+        outputs: 3,
+        outputLabels: ["end", "llm", "tool"],
+        icon: "font-awesome/fa-code-fork",
+        paletteLabel: "langgraph router",
+        label: function () {
+            return this.name || "langgraph-router";
+        },
+        labelStyle: function () {
+            return this.name ? "node_label_italic" : "";
+        }
+    });
+</script>
