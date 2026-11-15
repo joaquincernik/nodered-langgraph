@@ -17,6 +17,63 @@ module.exports = function (RED) {
         SystemMessage,
         mapStoredMessagesToChatMessages
     } = require("@langchain/core/messages");
+    const { assertState, appendMessage } = require("../lib/state");
+
+    // Cada proveedor tiene su propia variable de entorno "de toda la vida".
+    // Las listamos para no depender de la magia interna de LangChain: así el
+    // nodo sabe de dónde sacó la clave y puede contarlo en el log.
+    const PROVIDER_ENV_VARS = {
+        openai: "OPENAI_API_KEY",
+        anthropic: "ANTHROPIC_API_KEY",
+        groq: "GROQ_API_KEY",
+        mistralai: "MISTRAL_API_KEY",
+        mistral: "MISTRAL_API_KEY",
+        cohere: "COHERE_API_KEY",
+        google: "GOOGLE_API_KEY",
+        google_genai: "GOOGLE_API_KEY",
+        google_vertexai: "GOOGLE_API_KEY",
+        azure_openai: "AZURE_OPENAI_API_KEY",
+        fireworks: "FIREWORKS_API_KEY",
+        together: "TOGETHER_API_KEY",
+        deepseek: "DEEPSEEK_API_KEY",
+        xai: "XAI_API_KEY",
+        perplexity: "PERPLEXITY_API_KEY"
+    };
+
+    // "groq:openai/gpt-oss-120b" -> "groq"; sin prefijo -> ""
+    function providerOf(modelString) {
+        const coincidencia = /^([a-z0-9_]+):/i.exec(modelString || "");
+        return coincidencia ? coincidencia[1].toLowerCase() : "";
+    }
+
+    /**
+     * Decide qué clave usar, en este orden:
+     *   1. la que se cargó en el nodo (lo más explícito),
+     *   2. LLM_API_KEY (una sola variable para cualquier proveedor),
+     *   3. la variable propia del proveedor (GROQ_API_KEY, OPENAI_API_KEY, ...).
+     *
+     * Devuelve también el origen, para poder avisarlo en el log sin mostrar
+     * nunca la clave. Si no encuentra nada, devuelve vacío y LangChain hará
+     * su propio intento (útil para servidores locales que no piden clave).
+     */
+    function resolveApiKey(modelString, credentialKey) {
+        if (credentialKey) {
+            return { key: credentialKey, source: "credencial del nodo" };
+        }
+        if (process.env.LLM_API_KEY) {
+            return { key: process.env.LLM_API_KEY, source: "LLM_API_KEY" };
+        }
+        const provider = providerOf(modelString);
+        if (!provider) {
+            return { key: "", source: "sin clave (el modelo no indica proveedor)" };
+        }
+        const varName =
+            PROVIDER_ENV_VARS[provider] || provider.toUpperCase() + "_API_KEY";
+        if (process.env[varName]) {
+            return { key: process.env[varName], source: varName };
+        }
+        return { key: "", source: "sin clave (se probará " + varName + ")" };
+    }
 
     function LangGraphLLMNode(config) {
         RED.nodes.createNode(this, config);
@@ -31,11 +88,25 @@ module.exports = function (RED) {
         node.baseUrl = (config.baseUrl || "").trim();
         // system prompt configurado en el nodo (efimero: no se guarda en msg.state)
         node.systemPrompt = (config.systemPrompt || "").trim();
+        // A dónde va el mensaje después de esta respuesta. El router lo lee
+        // para decidir por qué salida mandarlo. Vacío equivale a "end".
+        node.nextNode = (config.nextNode || "").trim() || "end";
 
-        // apiKey via credenciales del nodo o variable de entorno segun proveedor
-        const envKey = process.env.LLM_API_KEY;
-        node.apiKey =
-            (node.credentials && node.credentials.apiKey) || envKey || "";
+        // De dónde sale la clave: credencial del nodo > LLM_API_KEY > variable
+        // propia del proveedor. Lo dejamos anotado en el log (sin mostrar la
+        // clave) para que un error 401 no sea un misterio.
+        const clave = resolveApiKey(
+            node.modelString,
+            node.credentials && node.credentials.apiKey
+        );
+        node.apiKey = clave.key;
+        node.apiKeySource = clave.source;
+        node.log(
+            "modelo " +
+            (node.modelString || "(sin configurar)") +
+            " | auth: " +
+            node.apiKeySource
+        );
 
         // initChatModel es async: se resuelve en el primer input y se cachea
         // (una instancia por nodo, patron LangChain). Si falla, se limpia el
@@ -47,6 +118,9 @@ module.exports = function (RED) {
                     temperature: node.temperature
                 };
                 
+                // Si no encontramos clave, no pasamos el campo: así LangChain
+                // puede intentar su propio camino (o el servidor local no
+                // necesita ninguna).
                 if (node.apiKey) {
                     params.apiKey = node.apiKey;
                 }
@@ -80,16 +154,22 @@ module.exports = function (RED) {
             const chainedPrompt =
                 typeof msg.userPrompt === "string" ? msg.userPrompt.trim() : "";
             const chained = chainedPrompt.length > 0;
-            const hasState = msg.state && Array.isArray(msg.state.messages);
 
-            if (!chained && !hasState) {
-                const err = new Error(
-                    "langgraph-llm: el mensaje no trae msg.userPrompt ni msg.state.messages. " +
-                    "Para prompt chaining definí msg.userPrompt; para el grafo LangGraph usá un nodo langgraph-start."
-                );
-                node.status({ fill: "red", shape: "ring", text: "no prompt" });
-                if (done) { done(err); } else { node.error(err, msg); }
-                return;
+            // En modo grafo necesitamos el expediente. Si no está, el helper
+            // nos da un error que dice exactamente qué conectar.
+            let state = null;
+            if (!chained) {
+                try {
+                    state = assertState(
+                        msg,
+                        "langgraph-llm",
+                        "Si querés usar prompt chaining, definí msg.userPrompt."
+                    );
+                } catch (err) {
+                    node.status({ fill: "red", shape: "ring", text: "no state" });
+                    if (done) { done(err); } else { node.error(err, msg); }
+                    return;
+                }
             }
 
             node.status({ fill: "yellow", shape: "ring", text: "invoking" });
@@ -98,7 +178,7 @@ module.exports = function (RED) {
             // Grafo: restaura el historial serializado -> BaseMessage de LangChain.
             let messages = chained
                 ? [new HumanMessage(chainedPrompt)]
-                : mapStoredMessagesToChatMessages(msg.state.messages);
+                : mapStoredMessagesToChatMessages(state.messages);
 
             // System prompt (efimero: solo para esta invocacion, no se persiste en el estado)
             // Precedencia: msg.systemPrompt > system ya presente en el estado > config del nodo
@@ -124,14 +204,25 @@ module.exports = function (RED) {
                         msg.payload = response.text;
                         node.status({ fill: "green", shape: "dot", text: "chained" });
                     } else {
-                        // Modo grafo: response es un AIMessage; lo serializamos al estado
-                        msg.state.messages.push(response.toDict());
-                        msg.state.iterations = (msg.state.iterations || 0) + 1;
-                        msg.state.next_node = "end";
+                        // Modo grafo: response es un AIMessage; lo guardamos en
+                        // el historial con el mismo formato que usa start.
+                        appendMessage(state, response);
+                        state.iterations = (state.iterations || 0) + 1;
+
+                        // Destino para el router. Manda lo que venga en el
+                        // mensaje (útil para decidir sobre la marcha); si no,
+                        // lo configurado en el nodo; si tampoco hay, se
+                        // termina. Así el grafo nunca queda sin salida.
+                        const pedido =
+                            typeof msg.nextNode === "string"
+                                ? msg.nextNode.trim()
+                                : "";
+                        state.next_node = pedido || node.nextNode || "end";
+
                         node.status({
                             fill: "green",
                             shape: "dot",
-                            text: "iter " + msg.state.iterations
+                            text: "iter " + state.iterations + " → " + state.next_node
                         });
                     }
                     send(msg);

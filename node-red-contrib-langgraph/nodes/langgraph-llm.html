@@ -20,6 +20,10 @@
         <textarea id="node-input-systemPrompt" rows="4" placeholder="ej. Sos un asistente que responde en español y de forma concisa."></textarea>
     </div>
     <div class="form-row">
+        <label for="node-input-nextNode"><i class="fa fa-arrow-right"></i> Next node</label>
+        <input type="text" id="node-input-nextNode" placeholder="end">
+    </div>
+    <div class="form-row">
         <label for="node-input-apiKey"><i class="fa fa-key"></i> API Key</label>
         <input type="password" id="node-input-apiKey">
     </div>
@@ -27,8 +31,10 @@
         <b>Modelo:</b> Formato <code>proveedor:modelo</code> obligatorio (ej. <code>groq:openai/gpt-oss-120b</code>, <code>openai:gpt-4o-mini</code>).<br>
         <b>Entrada:</b> si llega <code>msg.userPrompt</code>, se usa como prompt y la respuesta se escribe en <code>msg.payload</code> (modo prompt chaining; no usa <code>msg.state</code>). Si no, usa <code>msg.state.messages</code> (modo grafo).<br>
         <b>System Prompt:</b> Opcional. Se antepone como <code>SystemMessage</code> en cada llamada; no se guarda en <code>msg.state</code>. Se puede sobrescribir por mensaje con <code>msg.systemPrompt</code>.<br>
+        <b>Next node:</b> A dónde va el mensaje después de la respuesta (lo lee el <code>langgraph-router</code>). Por defecto <code>end</code>. Se puede pisar por mensaje con <code>msg.nextNode</code>.<br>
         <b>Base URL:</b> Opcional. Úsala para servidores locales (Ollama, LM Studio) o proxies corporativos.<br>
-        <b>API Key:</b> Si se omite en la interfaz, el nodo intentará leer <code>LLM_API_KEY</code> desde las variables de entorno.
+        <b>API Key:</b> Orden de búsqueda: credencial del nodo → <code>LLM_API_KEY</code> → variable del proveedor (<code>GROQ_API_KEY</code>, <code>OPENAI_API_KEY</code>, ...).<br>
+        <b>Ojo con <code>.env</code>:</b> el contenedor lee las variables al crearse. Si las cambiás, usá <code>docker compose up -d --force-recreate</code>.
     </div>
 </script>
 
@@ -47,8 +53,28 @@
         <li><b>Temperature</b> — Creatividad de la respuesta (default: 0.7).</li>
         <li><b>Base URL</b> — (Opcional) Dirección personalizada del endpoint. Necesaria para modelos locales o proxies corporativos. Dejar en blanco para usar los servidores oficiales del proveedor.</li>
         <li><b>System Prompt</b> — (Opcional) Instrucciones de sistema. Se antepone como <code>SystemMessage</code> en cada invocación (no se persiste en <code>msg.state</code>). Precedencia: <code>msg.systemPrompt</code> &gt; system ya presente en el estado &gt; config del nodo.</li>
-        <li><b>API Key</b> — Credencial de autenticación. Si no se especifica, se intenta leer desde la variable de entorno <code>LLM_API_KEY</code>. No es necesaria para la mayoría de los servidores locales.</li>
+        <li><b>Next node</b> — (Opcional) Destino que el nodo escribe en <code>msg.state.next_node</code> después de responder. El <code>langgraph-router</code> lo usa para elegir la salida. Orden de prioridad: <code>msg.nextNode</code> &gt; este campo &gt; <code>end</code>. Con <code>llm</code> se vuelve a llamar al modelo (bucle); con <code>tool</code> se ejecuta una herramienta (cuando exista); con <code>end</code> termina.</li>
+        <li><b>API Key</b> — Credencial de autenticación (se guarda cifrada). Si no se especifica, el nodo busca una variable de entorno. No es necesaria para la mayoría de los servidores locales.</li>
     </ul>
+    <h3>De dónde sale la API Key</h3>
+    <p>El nodo busca la clave en este orden y usa la primera que encuentre:</p>
+    <ol>
+        <li><b>La credencial cargada en el nodo</b> (campo API Key). Es lo más explícito y tiene prioridad sobre todo lo demás.</li>
+        <li><b><code>LLM_API_KEY</code></b> — una sola variable para cualquier proveedor.</li>
+        <li><b>La variable propia del proveedor</b>, según el prefijo del modelo: <code>GROQ_API_KEY</code> para <code>groq:...</code>, <code>OPENAI_API_KEY</code> para <code>openai:...</code>, <code>ANTHROPIC_API_KEY</code> para <code>anthropic:...</code>, etc.</li>
+    </ol>
+    <p>
+        Al arrancar, el nodo anota en el log de Node-RED cuál de las tres usó
+        (sin mostrar la clave), por ejemplo <code>auth: GROQ_API_KEY</code>.
+        Así, si aparece un error 401, se sabe de inmediato qué clave se estaba
+        usando y cuál corregir.
+    </p>
+    <p>
+        <b>Importante:</b> las variables de entorno de Docker se leen cuando el
+        contenedor se <b>crea</b>. Si cambiás <code>.env</code>, un
+        <code>docker compose restart</code> no alcanza: hace falta
+        <code>docker compose up -d --force-recreate</code>.
+    </p>
 </script>
 
 <script>
@@ -60,7 +86,8 @@
             model: { value: "", required: true },
             temperature: { value: 0.7, validate: RED.validators.number(true) },
             baseUrl: { value: "" },
-            systemPrompt: { value: "" }
+            systemPrompt: { value: "" },
+            nextNode: { value: "end" }
         },
         credentials: {
             apiKey: { type: "password" }
