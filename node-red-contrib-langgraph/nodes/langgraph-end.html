@@ -32,6 +32,13 @@
         conserva en el mensaje para inspección o para nodos posteriores.
     </p>
     <p>
+        Si el expediente trae <code>conversation_id</code> (porque el nodo de
+        inicio tiene la memoria activada), este nodo guarda el historial en el
+        contexto de la pestaña para la próxima corrida. Antes de guardar limpia
+        los pedidos de herramienta que quedaron sin respuesta, para que el
+        proveedor no rechace la conversación.
+    </p>
+    <p>
         Si el mensaje llega <b>sin</b> <code>msg.state</code> (por ejemplo en un
         flujo de <b>prompt chaining</b>, donde el LLM escribe su respuesta en
         <code>msg.payload</code>), el nodo actúa como <i>pass-through</i>: no

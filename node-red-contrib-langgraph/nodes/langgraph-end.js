@@ -14,11 +14,21 @@
  *    vueltas que marcará el router), no lo pisa con COMPLETED. Así el motivo
  *    real del final no se pierde.
  *
+ * 3. Si el inicio tenía la memoria activada, guarda el historial en el contexto
+ *    de la pestaña para la próxima corrida. Antes de guardar limpia los pedidos
+ *    de herramienta que quedaron sin respuesta.
+ *
  * Las reglas para leer el expediente viven en lib/state.js, compartidas con
  * los demás nodos.
  */
 module.exports = function (RED) {
-    const { lastAssistant, messageText, isTerminal } = require("../lib/state");
+    const {
+        lastAssistant,
+        messageText,
+        isTerminal,
+        sanitizeForResume,
+        CONVERSATION_PREFIX
+    } = require("../lib/state");
 
     function LangGraphEndNode(config) {
         RED.nodes.createNode(this, config);
@@ -61,7 +71,44 @@ module.exports = function (RED) {
                 }
                 state.next_node = null;
 
-                node.status({ fill: "green", shape: "dot", text: "completed" });
+                // Si el inicio tenía la memoria activada, guardamos el
+                // historial para la próxima corrida. La clave viaja en el
+                // estado, así el fin no necesita saber si la memoria estaba
+                // activada ni cuál era la clave.
+                let guardado = false;
+                if (
+                    typeof state.conversation_id === "string" &&
+                    state.conversation_id &&
+                    Array.isArray(state.messages)
+                ) {
+                    try {
+                        const claveGuardado =
+                            typeof state.conversation_store_key === "string" &&
+                            state.conversation_store_key
+                                ? state.conversation_store_key
+                                : CONVERSATION_PREFIX + state.conversation_id;
+                        node.context().flow.set(claveGuardado, {
+                            version: state.version,
+                            conversation_id: state.conversation_id,
+                            messages: sanitizeForResume(state.messages),
+                            updated_at: new Date().toISOString()
+                        });
+                        guardado = true;
+                    } catch (err) {
+                        // Que no se pueda guardar no debe romper la respuesta
+                        // que el usuario ya tiene en la mano.
+                        node.warn(
+                            "langgraph-end: no se pudo guardar la conversación: " +
+                            err.message
+                        );
+                    }
+                }
+
+                node.status({
+                    fill: "green",
+                    shape: "dot",
+                    text: guardado ? "completed + memoria" : "completed"
+                });
                 send(msg);
                 if (done) { done(); }
             } catch (err) {

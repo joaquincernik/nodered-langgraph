@@ -2,6 +2,9 @@
 
 En este proyecto se plantea la contribucion al ecosistema nodered tomando como referencia el framework de desarrollo de agentes de IA como nodered
 
+> Antes de publicar, revisar [`PENDIENTES.md`](PENDIENTES.md): tiene lo que falta,
+> el criterio para decir "listo" y los pasos de la instalación limpia.
+
 ## Definicion de alcance
 
 ### Nodos esenciales
@@ -60,6 +63,43 @@ README.md con instalación, arquitectura de msg.state y captura del flujo.
 - `version`: versión del formato, para poder reconocer expedientes viejos si el contrato cambia.
 - `run_id`: identificador único de cada corrida (útil para trazas y, más adelante, puntos de guardado).
 - `status`: `RUNNING` mientras el grafo trabaja; al terminar puede quedar en `COMPLETED`, `MAX_ITERATIONS`, `ERROR` o `INTERRUPTED`.
+
+## Memoria entre corridas
+
+Sin memoria, cada corrida empieza de cero: si preguntás “¿qué clima hace en
+Rosario?” y después “¿y en Córdoba?”, el modelo no sabe a qué te referís.
+
+La memoria resuelve eso. Se activa en el nodo `langgraph-start` con el campo
+**Memoria**. Al terminar la corrida, el nodo `langgraph-end` guarda la
+conversación; en la próxima, el inicio la recupera y la pone delante del
+mensaje nuevo.
+
+```
+inicio (carga el historial) → ... → fin (guarda el historial)
+```
+
+### Cómo usarla
+
+1. En el nodo `langgraph-start`, activá **Memoria**.
+2. Opcional: poné una **Clave** para separar conversaciones. Si la dejás vacía,
+   se usa el id del nodo.
+3. Mandá `msg.conversationId` si tenés varios usuarios: tiene prioridad sobre la
+   clave configurada.
+4. Para empezar de cero, mandá `msg.resetConversation = true` (por ejemplo con
+   un inject y un Change).
+
+El nodo `langgraph-end` tiene que estar en la **misma pestaña**, porque los dos
+usan el contexto de esa pestaña.
+
+### Cuánto dura y qué se guarda
+
+- La memoria vive en el contexto de la pestaña y **dura mientras Node-RED esté
+  encendido**. Si reiniciás, se pierde.
+- Para conservarla en disco hay que configurar `contextStorage` en
+  `settings.js` (no viene activado).
+- Antes de guardar, se limpian los pedidos de herramienta que quedaron sin
+  respuesta (por ejemplo, al cortar por el límite de vueltas). Así el proveedor
+  no rechaza la conversación la próxima vez.
 
 ## Herramientas = flujos de Node-RED
 
@@ -176,6 +216,11 @@ docker compose up -d          # Node-RED en http://localhost:1880
 > Si cambiás una variable de `.env`, el contenedor tiene que **recrearse**:
 > `docker compose up -d --force-recreate`. Un `docker compose restart` no vuelve
 > a leer el archivo, y el contenedor sigue usando la variable anterior.
+
+> El `docker-compose.yml` arranca Node con
+> `--no-network-family-autoselection`. En redes sin salida IPv6, Node intenta
+> IPv6 igual y las llamadas HTTPS (como la del clima) fallan por timeout. Si tu
+> red tiene IPv6, podés quitar esa variable sin problema.
 
 El flujo de ejemplo ya está desplegado en `node-red-data/flows.json`. Para probarlo, abrir el editor y hacer clic en el botón del nodo `inject`; la respuesta aparece en la pestaña **Debug**.
 

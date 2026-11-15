@@ -20,6 +20,10 @@ const { HumanMessage } = require("@langchain/core/messages");
 // viejo y adaptarlo en vez de fallar sin explicación.
 const STATE_VERSION = 1;
 
+// Prefijo de las conversaciones guardadas en el contexto de una pestaña.
+// Se usa desde el inicio y el fin, así los dos buscan la misma clave.
+const CONVERSATION_PREFIX = "langgraph:conversation:";
+
 // Estados que significan "el grafo ya terminó". Si el expediente está en uno
 // de estos, ningún nodo debería volver a ponerlo en marcha ni pisarlo con
 // COMPLETED.
@@ -149,6 +153,50 @@ function messageText(message) {
 }
 
 /**
+ * Prepara el historial para una conversación nueva.
+ *
+ * Si una corrida terminó justo cuando el modelo había pedido una herramienta
+ * y nadie llegó a responderla (por ejemplo, al cortar por el límite de
+ * vueltas), ese pedido queda "colgado". Los proveedores rechazan una
+ * conversación así. Antes de guardar o reutilizar el historial, le quitamos
+ * ese pedido. Si el mensaje quedó vacío, lo descartamos.
+ *
+ * Devuelve una copia: el historial original no se toca, así el mensaje que
+ * sigue viaje (y el debug) conserva lo que realmente pasó.
+ */
+function sanitizeForResume(messages) {
+    if (!Array.isArray(messages) || messages.length === 0) {
+        return [];
+    }
+    const copia = JSON.parse(JSON.stringify(messages));
+    let i = copia.length - 1;
+    while (i >= 0) {
+        const mensaje = copia[i];
+        const tipo = mensaje && (mensaje.type || mensaje.role);
+        if (tipo !== "ai" && tipo !== "assistant") {
+            break;
+        }
+        const datos = mensaje.data || mensaje;
+        const llamadas = datos.tool_calls;
+        if (!Array.isArray(llamadas) || llamadas.length === 0) {
+            break;
+        }
+        delete datos.tool_calls;
+        if (datos.additional_kwargs) {
+            delete datos.additional_kwargs.tool_calls;
+        }
+        if (mensaje.additional_kwargs) {
+            delete mensaje.additional_kwargs.tool_calls;
+        }
+        if (messageText(mensaje).trim() === "") {
+            copia.splice(i, 1);
+        }
+        i--;
+    }
+    return copia;
+}
+
+/**
  * ¿El grafo ya terminó? Se usa antes de cambiar el estado, para no pisar un
  * final que otro nodo ya había decidido (por ejemplo, el límite de vueltas
  * que marcará el router).
@@ -163,10 +211,12 @@ function isTerminal(state) {
 
 module.exports = {
     STATE_VERSION: STATE_VERSION,
+    CONVERSATION_PREFIX: CONVERSATION_PREFIX,
     TERMINAL_STATUSES: TERMINAL_STATUSES,
     assertState: assertState,
     createState: createState,
     appendMessage: appendMessage,
+    sanitizeForResume: sanitizeForResume,
     lastAssistant: lastAssistant,
     messageText: messageText,
     isTerminal: isTerminal

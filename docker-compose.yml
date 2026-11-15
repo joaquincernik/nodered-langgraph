@@ -9,6 +9,9 @@ services:
     user: root 
     environment:
       - TZ=America/Argentina/Buenos_Aires
+      # En esta red el contenedor no tiene salida IPv6. Node intenta IPv6
+      # igual y las llamadas HTTPS fallan por timeout. Con esto usa IPv4.
+      - NODE_OPTIONS=--no-network-family-autoselection
     env_file:
       - .env
     ports:

@@ -628,7 +628,7 @@
         "topic": "",
         "payload": "Que clima hace en Salsipuedes, Córdoba, Argentina ?",
         "payloadType": "str",
-        "x": 140,
+        "x": 100,
         "y": 160,
         "wires": [
             [
@@ -642,6 +642,8 @@
         "z": "671bafab882a4047",
         "name": "",
         "maxIterations": 5,
+        "memory": true,
+        "conversationKey": "agente-clima",
         "x": 320,
         "y": 160,
         "wires": [
@@ -735,6 +737,83 @@
         "x": 1300,
         "y": 100,
         "wires": []
+    },
+    {
+        "id": "59f1f41469534a11",
+        "type": "inject",
+        "z": "671bafab882a4047",
+        "name": "Seguimiento",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "¿Y en Córdoba, Argentina?",
+        "payloadType": "str",
+        "x": 110,
+        "y": 220,
+        "wires": [
+            [
+                "6d577765a15f454d"
+            ]
+        ]
+    },
+    {
+        "id": "1d5ab36d8f7a4cd5",
+        "type": "inject",
+        "z": "671bafab882a4047",
+        "name": "Nueva conversación",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "Empecemos de nuevo.",
+        "payloadType": "str",
+        "x": 110,
+        "y": 380,
+        "wires": [
+            [
+                "3e66f355be994a9b"
+            ]
+        ]
+    },
+    {
+        "id": "3e66f355be994a9b",
+        "type": "change",
+        "z": "671bafab882a4047",
+        "name": "Reiniciar memoria",
+        "rules": [
+            {
+                "t": "set",
+                "p": "resetConversation",
+                "pt": "msg",
+                "to": "true",
+                "tot": "bool"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 370,
+        "y": 380,
+        "wires": [
+            [
+                "6d577765a15f454d"
+            ]
+        ]
     },
     {
         "id": "b66447a3c22241ef",

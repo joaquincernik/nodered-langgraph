@@ -8,9 +8,20 @@
         <label for="node-input-maxIterations"><i class="fa fa-repeat"></i> Max. iteraciones</label>
         <input type="text" id="node-input-maxIterations" placeholder="5">
     </div>
+    <div class="form-row">
+        <label for="node-input-memory"><i class="fa fa-history"></i> Memoria</label>
+        <input type="checkbox" id="node-input-memory" style="display:inline-block;width:auto;vertical-align:top;">
+        <label for="node-input-memory" style="width:70%;display:inline-block;">Recordar la conversación entre corridas</label>
+    </div>
+    <div class="form-row">
+        <label for="node-input-conversationKey"><i class="fa fa-key"></i> Clave</label>
+        <input type="text" id="node-input-conversationKey" placeholder="(opcional) por defecto: este nodo">
+    </div>
     <div class="form-tips">
         Inicializa <code>msg.state</code> (contrato del grafo) con el
         contenido de <code>msg.payload</code> como primer mensaje del usuario.
+        Si la memoria está activada, recupera el historial guardado y lo pone
+        delante del mensaje nuevo.
     </div>
 </script>
 
@@ -32,6 +43,11 @@
         reconocer expedientes viejos si el formato cambia.
     </p>
     <p>
+        Si la <b>memoria</b> está activada, el nodo busca el historial guardado
+        en el contexto de la pestaña y lo pone delante del mensaje nuevo. El
+        historial lo guarda <code>langgraph-end</code> al terminar cada corrida.
+    </p>
+    <p>
         El primer mensaje se serializa con el formato estándar de LangChain
         (<code>{ type: "human", data: { content } }</code>) para poder ser
         restaurado por los nodos siguientes.
@@ -39,7 +55,24 @@
     <h3>Configuración</h3>
     <ul>
         <li><b>Max. iteraciones</b> — límite de ciclos del grafo (default: 5).</li>
+        <li><b>Memoria</b> — si está activada, el historial se guarda al terminar la corrida y se recupera en la próxima. Así se puede preguntar “¿y en Córdoba?” sin repetir la ciudad.</li>
+        <li><b>Clave</b> — (Opcional) Separa conversaciones. Si está vacía se usa el id de este nodo. <code>msg.conversationId</code> tiene prioridad sobre este campo.</li>
     </ul>
+    <h3>Memoria</h3>
+    <p>
+        La memoria vive en el contexto de la pestaña y dura mientras Node-RED
+        esté encendido. Si reiniciás, se pierde. Para conservarla en disco hay
+        que configurar <code>contextStorage</code> en <code>settings.js</code>
+        (no viene activado).
+    </p>
+    <p>
+        El nodo <code>langgraph-end</code> tiene que estar en la misma pestaña,
+        porque es el que guarda el historial usando ese mismo contexto.
+    </p>
+    <p>
+        Para empezar de cero, mandá <code>msg.resetConversation = true</code>
+        (por ejemplo con un inject y un Change).
+    </p>
 </script>
 
 <script>
@@ -48,7 +81,9 @@
         color: "#37d593",
         defaults: {
             name: { value: "" },
-            maxIterations: { value: 5, validate: RED.validators.number(true) }
+            maxIterations: { value: 5, validate: RED.validators.number(true) },
+            memory: { value: false },
+            conversationKey: { value: "" }
         },
         inputs: 1,
         outputs: 1,
