@@ -12,6 +12,8 @@ En este proyecto se plantea la contribucion al ecosistema nodered tomando como r
 
 * `langgraph-router:` Nodo condicional con múltiples salidas (puertos). Analiza msg.state (por ejemplo, si el LLM solicitó una herramienta o finalizó) y redirige el flujo.
 
+* `langgraph-tool:` Puente hacia una herramienta. Una herramienta es un flujo normal de Node-RED expuesto por HTTP: este nodo le pasa el pedido y guarda la respuesta en el expediente.
+
 * `langgraph-end:` Consolida el resultado final del estado y emite la respuesta formateada hacia fuera del grafo.
 
 ### Flujo de Ejemplo (Demo)
@@ -41,17 +43,78 @@ README.md con instalación, arquitectura de msg.state y captura del flujo.
 ```json
 {
   "state": {
+    "version": 1,
+    "run_id": "0f7c2a1e-...",
     "messages": [
-      { "role": "user", "content": "Hola" },
-      { "role": "assistant", "content": "..." }
+      { "type": "human", "data": { "content": "Hola" } },
+      { "type": "ai", "data": { "content": "..." } }
     ],
-    "next_node": "agent",
+    "next_node": "llm",
     "status": "RUNNING",
     "iterations": 1,
     "max_iterations": 5
   }
 }
 ```
+
+- `version`: versión del formato, para poder reconocer expedientes viejos si el contrato cambia.
+- `run_id`: identificador único de cada corrida (útil para trazas y, más adelante, puntos de guardado).
+- `status`: `RUNNING` mientras el grafo trabaja; al terminar puede quedar en `COMPLETED`, `MAX_ITERATIONS`, `ERROR` o `INTERRUPTED`.
+
+## Herramientas = flujos de Node-RED
+
+La idea central del proyecto es que **una herramienta no es código especial**:
+es un flujo normal de Node-RED que recibe un dato, hace su trabajo y devuelve
+una respuesta. El agente lo usa igual que LangGraph usa sus herramientas.
+
+### El pedido
+
+Antes de ir al nodo `langgraph-tool`, el expediente lleva anotado qué hace falta:
+
+```json
+{
+  "state": {
+    "tool_request": { "name": "clima", "input": "Rosario" },
+    "next_node": "tool"
+  }
+}
+```
+
+`name` tiene que coincidir con el **nombre de la herramienta** configurado en el
+nodo; `input` es el dato que necesita el flujo. El `langgraph-router` manda el
+mensaje por su salida `tool` y, al terminar, el nodo deja `next_node = "llm"`
+para que el modelo lea el resultado.
+
+### El flujo herramienta
+
+Se arma con nodos comunes, en la misma pestaña o en otra:
+
+```
+http in (POST /tool/clima)  →  function (hace el trabajo)  →  http response
+```
+
+Puede devolver texto plano, `{ "output": "..." }` o cualquier JSON. Se prueba
+solo, sin el agente:
+
+```bash
+curl -X POST http://localhost:1880/tool/clima \
+  -H "Content-Type: application/json" \
+  -d '{"name":"clima","input":"Rosario"}'
+```
+
+### Qué guarda el nodo
+
+La respuesta se agrega al historial como un mensaje de usuario:
+
+```
+[Resultado de la herramienta "clima"] Soleado, 24 °C
+```
+
+Se usa un mensaje de usuario a propósito: algunos proveedores solo aceptan
+mensajes de herramienta cuando el modelo la pidió a su manera. Así el resultado
+funciona con todos y el modelo lo entiende igual. Si el flujo falla, la falla se
+guarda igual como mensaje y el modelo decide qué hacer; el bucle sigue limitado
+por `max_iterations`.
 
 ## Puesta en marcha
 
@@ -61,6 +124,10 @@ Requisitos: Docker y Docker Compose.
 cp .env.example .env          # completar GROQ_API_KEY
 docker compose up -d          # Node-RED en http://localhost:1880
 ```
+
+> Si cambiás una variable de `.env`, el contenedor tiene que **recrearse**:
+> `docker compose up -d --force-recreate`. Un `docker compose restart` no vuelve
+> a leer el archivo, y el contenedor sigue usando la variable anterior.
 
 El flujo de ejemplo ya está desplegado en `node-red-data/flows.json`. Para probarlo, abrir el editor y hacer clic en el botón del nodo `inject`; la respuesta aparece en la pestaña **Debug**.
 
