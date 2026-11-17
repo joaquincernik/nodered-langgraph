@@ -30,6 +30,13 @@
         "README.md",
         "LICENSE"
     ],
+    "scripts": {
+        "test": "node test/memory.test.js",
+        "test:memory": "node test/memory.test.js",
+        "test:demo": "node test/check-demo.js",
+        "test:regression": "node test/regression-tabs.js",
+        "test:clean-install": "bash test/instalacion-limpia.sh"
+    },
     "dependencies": {
         "@langchain/core": "^1.2.14",
         "@langchain/groq": "^1.3.1",

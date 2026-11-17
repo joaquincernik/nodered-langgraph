@@ -239,3 +239,16 @@ docker exec -w /data/node_modules/node-red-contrib-langgraph nodered_pfs2026 npm
 # Node-RED no recarga nodos en caliente: reiniciar tras cambiar un .js
 docker compose restart
 ```
+
+### Pruebas
+
+Las pruebas viven en `node-red-contrib-langgraph/test/` y están explicadas en
+`node-red-contrib-langgraph/test/README.md`.
+
+```bash
+cd node-red-contrib-langgraph
+npm test                 # memoria, sin Node-RED
+npm run test:demo        # demo del agente contra localhost:1880
+npm run test:regression  # pestañas 1 a 4
+npm run test:clean-install
+```

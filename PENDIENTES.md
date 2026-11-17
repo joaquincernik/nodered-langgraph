@@ -15,6 +15,7 @@ Lo que queda es opcional o propio del momento de publicar en npm.
 - Demo del clima con Open-Meteo, sin clave.
 - Memoria entre corridas, opcional por nodo de inicio.
 - Las pestañas 1 a 6 del entorno de desarrollo.
+- Las pruebas automáticas en `test/`.
 - README del repositorio y `PENDIENTES.md`.
 
 ## Paquete listo
@@ -31,9 +32,45 @@ Todo esto está dentro de `node-red-contrib-langgraph/`:
       en `1.5.8` porque las versiones nuevas piden Node 22 y la imagen de
       Node-RED 4.1.7 usa Node 20.
 
+## Pruebas automáticas
+
+Están en `node-red-contrib-langgraph/test/` y se ejecutan desde la carpeta del
+paquete:
+
+```bash
+cd node-red-contrib-langgraph
+
+npm test                 # memoria, sin Node-RED encendido
+npm run test:demo        # demo del agente contra localhost:1880
+npm run test:regression  # pestañas 1 a 4
+npm run test:clean-install
+```
+
+- [x] **`memory.test.js`**: memoria, reinicio y limpieza de mensajes.
+- [x] **`check-demo.js`**: consulta, herramienta del clima y seguimiento.
+- [x] **`regression-tabs.js`**: las pestañas 1 a 4 siguen respondiendo.
+- [x] **`instalacion-limpia.sh`**: empaqueta, instala en un Node-RED nuevo,
+      importa el ejemplo y prueba la demo.
+
+Las cuatro pruebas pasaron el 17/11/2026 contra las pestañas actuales y contra
+un Node-RED 4.1.7 limpio en el puerto 1881. El detalle y las opciones están en
+`node-red-contrib-langgraph/test/README.md`.
+
 ## Prueba de instalación limpia
 
-Probada con `nodered/node-red:4.1.7` en el puerto 1881:
+Todo el procedimiento está automatizado:
+
+```bash
+cd node-red-contrib-langgraph
+bash test/instalacion-limpia.sh
+```
+
+El script arma el `.tgz`, levanta un Node-RED aparte en el puerto 1881, instala
+el paquete, revisa que aparezcan los 5 nodos, importa `examples/demo.json` y
+corre la demo si encuentra una API key. Al terminar borra el contenedor y el
+`.tgz`, salvo que se use `KEEP=1`.
+
+Resultado de la última corrida:
 
 - [x] `npm pack` genera un paquete de 15 archivos, sin credenciales.
 - [x] Se instala con `npm install` en otra instancia.
@@ -42,51 +79,17 @@ Probada con `nodered/node-red:4.1.7` en el puerto 1881:
 - [x] La memoria funciona: consulta, seguimiento y respuesta de otra ciudad.
 - [x] Sin errores en los logs (solo el aviso normal de credenciales vacías).
 
-Para repetir la prueba:
-
-```bash
-cd node-red-contrib-langgraph
-npm pack
-
-docker run -d --name nodered_demo_limpio \
-  -p 1881:1880 \
-  --env-file ../.env \
-  -e NODE_OPTIONS=--no-network-family-autoselection \
-  nodered/node-red:4.1.7
-
-docker cp node-red-contrib-langgraph-0.1.0.tgz nodered_demo_limpio:/tmp/
-docker exec -w /data nodered_demo_limpio \
-  npm install /tmp/node-red-contrib-langgraph-0.1.0.tgz
-docker restart nodered_demo_limpio
-
-curl -X POST http://localhost:1881/flows \
-  -H "Content-Type: application/json" \
-  -H "Node-RED-API-Version: v1" \
-  --data-binary @examples/demo.json
-```
-
-Después, abrir `http://localhost:1881`, revisar que estén los 5 nodos y probar
-los injects del ejemplo.
-
-Al terminar:
-
-```bash
-docker rm -f nodered_demo_limpio
-rm node-red-contrib-langgraph-0.1.0.tgz
-```
-
 ## Pendiente por decidir
 
-- [ ] **Pruebas en el repo.** Hoy los scripts de prueba viven en `/tmp` y se
-      pierden. Si se quieren conservar, moverlos a `test/`.
-- [ ] **Persistencia de la memoria.** Hoy vive en RAM y se pierde al reiniciar.
-      Se puede dejar así (está documentado) o agregar `contextStorage`.
-- [ ] **Guion de demo para la clase.** El ejemplo ya funciona; falta el paso a
-      paso para presentarlo.
-- [ ] **Publicar en npm.** Requiere `npm login` y después `npm publish` desde la
-      carpeta del paquete.
+- [ ] **Publicar en npm.** Por ahora no: el usuario todavía no tiene cuenta.
+      Cuando la tenga, alcanza con `npm login` y `npm publish`.
+- [ ] **Persistencia de la memoria.** Hoy vive en RAM y se pierde al reiniciar
+      Node-RED. Se puede dejar así (está documentado) o agregar
+      `contextStorage` con `localfilesystem` en `settings.js`.
+- [ ] **Guion de demo para la clase.** El ejemplo funciona; el paso a paso y la
+      explicación completa están en el markdown que vive fuera del repositorio.
 
-## Al publicar
+## Cuando haya cuenta en npm
 
 ```bash
 cd node-red-contrib-langgraph
