@@ -1,0 +1,413 @@
+[
+  {
+    "id": "671bafab882a4047",
+    "type": "tab",
+    "label": "5-Agente con herramienta",
+    "disabled": false,
+    "info": "El agente pide un dato al flujo herramienta (clima), recibe el resultado y responde. El router manda el pedido a la salida tool y la respuesta vuelve al LLM.",
+    "env": []
+  },
+  {
+    "id": "a3b4bd84f3314c43",
+    "type": "tab",
+    "label": "6-Flujo herramienta clima",
+    "disabled": false,
+    "info": "Esta pestaña es la herramienta. Recibe POST /tool/clima y devuelve un clima simulado. Se puede probar sola con curl; no necesita el agente para funcionar.",
+    "env": []
+  },
+  {
+    "id": "3b55869c50734855",
+    "type": "inject",
+    "z": "671bafab882a4047",
+    "name": "Consulta",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "",
+    "payload": "Que clima hace en Salsipuedes, Córdoba, Argentina ?",
+    "payloadType": "str",
+    "x": 100,
+    "y": 160,
+    "wires": [
+      [
+        "6d577765a15f454d"
+      ]
+    ]
+  },
+  {
+    "id": "6d577765a15f454d",
+    "type": "langgraph-start",
+    "z": "671bafab882a4047",
+    "name": "",
+    "maxIterations": 5,
+    "memory": true,
+    "conversationKey": "agente-clima",
+    "x": 320,
+    "y": 160,
+    "wires": [
+      [
+        "8dfcbf9b019a407e"
+      ]
+    ]
+  },
+  {
+    "id": "8dfcbf9b019a407e",
+    "type": "langgraph-llm",
+    "z": "671bafab882a4047",
+    "name": "llm",
+    "model": "groq:openai/gpt-oss-120b",
+    "temperature": 0.2,
+    "baseUrl": "",
+    "systemPrompt": "Sos un asistente que puede consultar el clima. Si el usuario pregunta por el clima de una ciudad, usá la herramienta disponible pasando la ciudad y el país (por ejemplo: Rosario, Argentina o Madrid, España) y después respondé en una sola frase clara, sin marcas ni corchetes.",
+    "nextNode": "end",
+    "useTools": true,
+    "x": 500,
+    "y": 160,
+    "wires": [
+      [
+        "6925ad2c61b342ea"
+      ]
+    ]
+  },
+  {
+    "id": "6925ad2c61b342ea",
+    "type": "langgraph-router",
+    "z": "671bafab882a4047",
+    "name": "router",
+    "x": 920,
+    "y": 160,
+    "wires": [
+      [
+        "b8ad42e6b69c4664"
+      ],
+      [
+        "8dfcbf9b019a407e"
+      ],
+      [
+        "ec93ab51402644e4"
+      ]
+    ]
+  },
+  {
+    "id": "ec93ab51402644e4",
+    "type": "langgraph-tool",
+    "z": "671bafab882a4047",
+    "name": "herramienta clima",
+    "toolName": "clima",
+    "description": "Consulta el clima actual de una ciudad. Recibe la ciudad y el país en español, por ejemplo: Rosario, Argentina o Madrid, España.",
+    "url": "http://localhost:1880/tool/clima",
+    "method": "POST",
+    "timeout": 15000,
+    "x": 690,
+    "y": 380,
+    "wires": [
+      [
+        "8dfcbf9b019a407e"
+      ]
+    ]
+  },
+  {
+    "id": "b8ad42e6b69c4664",
+    "type": "langgraph-end",
+    "z": "671bafab882a4047",
+    "name": "",
+    "x": 1120,
+    "y": 100,
+    "wires": [
+      [
+        "2ca119c8fa37496c"
+      ]
+    ]
+  },
+  {
+    "id": "2ca119c8fa37496c",
+    "type": "debug",
+    "z": "671bafab882a4047",
+    "name": "Resultado final",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 1300,
+    "y": 100,
+    "wires": []
+  },
+  {
+    "id": "59f1f41469534a11",
+    "type": "inject",
+    "z": "671bafab882a4047",
+    "name": "Seguimiento",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "",
+    "payload": "¿Y en Córdoba, Argentina?",
+    "payloadType": "str",
+    "x": 110,
+    "y": 220,
+    "wires": [
+      [
+        "6d577765a15f454d"
+      ]
+    ]
+  },
+  {
+    "id": "1d5ab36d8f7a4cd5",
+    "type": "inject",
+    "z": "671bafab882a4047",
+    "name": "Nueva conversación",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "",
+    "payload": "Empecemos de nuevo.",
+    "payloadType": "str",
+    "x": 110,
+    "y": 380,
+    "wires": [
+      [
+        "3e66f355be994a9b"
+      ]
+    ]
+  },
+  {
+    "id": "3e66f355be994a9b",
+    "type": "change",
+    "z": "671bafab882a4047",
+    "name": "Reiniciar memoria",
+    "rules": [
+      {
+        "t": "set",
+        "p": "resetConversation",
+        "pt": "msg",
+        "to": "true",
+        "tot": "bool"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 370,
+    "y": 380,
+    "wires": [
+      [
+        "6d577765a15f454d"
+      ]
+    ]
+  },
+  {
+    "id": "b66447a3c22241ef",
+    "type": "http in",
+    "z": "a3b4bd84f3314c43",
+    "name": "POST /tool/clima",
+    "url": "/tool/clima",
+    "method": "post",
+    "upload": false,
+    "skipBodyParsing": false,
+    "swaggerDoc": "",
+    "x": 170,
+    "y": 160,
+    "wires": [
+      [
+        "85c570db08774571"
+      ]
+    ]
+  },
+  {
+    "id": "484cb7c346294295",
+    "type": "http response",
+    "z": "a3b4bd84f3314c43",
+    "name": "",
+    "statusCode": "",
+    "headers": {},
+    "x": 1500,
+    "y": 160,
+    "wires": []
+  },
+  {
+    "id": "85c570db08774571",
+    "type": "function",
+    "z": "a3b4bd84f3314c43",
+    "name": "1. Preparar pedido",
+    "func": "// Recibe un pedido como { name: \"clima\", input: \"Ciudad, País\" }.\n// Si no hay ciudad, respondemos sin llamar a ningún servicio.\nconst pedido = msg.payload || {};\nconst texto = String(pedido.input || \"\").trim();\n\nif (!texto) {\n    msg.payload = { output: \"Necesito una ciudad. Probá con: Rosario, Argentina.\" };\n    node.status({ fill: \"red\", shape: \"ring\", text: \"falta ciudad\" });\n    return [msg, null];\n}\n\n// \"Rosario, Santa Fe, Argentina\" -> ciudad \"Rosario\", país \"Argentina\".\n// Si no se indica país, asumimos Argentina.\nconst partes = texto.split(\",\").map(function (p) { return p.trim(); }).filter(Boolean);\nconst ciudad = partes[0];\nconst pais = partes.length > 1 ? partes[partes.length - 1] : \"Argentina\";\n\nmsg._busqueda = { ciudad: ciudad, pais: pais, paisExplicito: partes.length > 1 };\nmsg.url = \"https://geocoding-api.open-meteo.com/v1/search?name=\" +\n    encodeURIComponent(ciudad) + \"&count=10&language=es&format=json\";\nmsg.requestTimeout = 6000;\n\nnode.status({ fill: \"blue\", shape: \"ring\", text: \"buscando \" + ciudad });\nreturn [null, msg];\n",
+    "outputs": 2,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 400,
+    "y": 160,
+    "wires": [
+      [
+        "484cb7c346294295"
+      ],
+      [
+        "887e29c03d6c4b29"
+      ]
+    ]
+  },
+  {
+    "id": "887e29c03d6c4b29",
+    "type": "http request",
+    "z": "a3b4bd84f3314c43",
+    "name": "Buscar ciudad",
+    "method": "GET",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "insecureHTTPParser": false,
+    "authType": "",
+    "senderr": true,
+    "headers": [],
+    "x": 620,
+    "y": 240,
+    "wires": [
+      [
+        "34f8509f4b1844ba"
+      ]
+    ]
+  },
+  {
+    "id": "34f8509f4b1844ba",
+    "type": "function",
+    "z": "a3b4bd84f3314c43",
+    "name": "2. Elegir ciudad",
+    "func": "// Open-Meteo devuelve una lista de lugares con ese nombre.\n// Elegimos el que coincide con el país pedido.\nconst busqueda = msg._busqueda || {};\nconst datos = msg.payload || {};\n\nfunction normalizar(t) {\n    return String(t || \"\").toLowerCase().normalize(\"NFD\")\n        .replace(/[\\u0300-\\u036f]/g, \"\")\n        .replace(/[^a-z0-9 ]/g, \"\")\n        .replace(/\\s+/g, \" \")\n        .trim();\n}\n\n// El modelo a veces escribe el país en inglés (\"Spain\") y Open-Meteo\n// responde en español (\"España\"). Estos alias evitan ese choque.\nconst ALIAS_PAIS = {\n    \"spain\": \"espana\",\n    \"france\": \"francia\",\n    \"italy\": \"italia\",\n    \"germany\": \"alemania\",\n    \"united kingdom\": \"reino unido\",\n    \"great britain\": \"reino unido\",\n    \"uk\": \"reino unido\",\n    \"united states\": \"estados unidos\",\n    \"united states of america\": \"estados unidos\",\n    \"usa\": \"estados unidos\",\n    \"us\": \"estados unidos\",\n    \"eeuu\": \"estados unidos\",\n    \"brazil\": \"brasil\",\n    \"mexico\": \"mexico\",\n    \"peru\": \"peru\",\n    \"japan\": \"japon\",\n    \"russia\": \"rusia\",\n    \"canada\": \"canada\",\n    \"netherlands\": \"paises bajos\",\n    \"belgium\": \"belgica\",\n    \"switzerland\": \"suiza\",\n    \"sweden\": \"suecia\",\n    \"norway\": \"noruega\",\n    \"denmark\": \"dinamarca\",\n    \"ireland\": \"irlanda\",\n    \"poland\": \"polonia\",\n    \"greece\": \"grecia\",\n    \"turkey\": \"turquia\",\n    \"egypt\": \"egipto\",\n    \"south africa\": \"sudafrica\",\n    \"new zealand\": \"nueva zelanda\"\n};\n\nif (msg.statusCode && msg.statusCode >= 400) {\n    msg.payload = {\n        output: \"El servicio del clima no está disponible ahora (\" +\n            msg.statusCode + \"). Probá de nuevo en unos minutos.\"\n    };\n    node.status({ fill: \"red\", shape: \"ring\", text: \"servicio \" + msg.statusCode });\n    return [msg, null];\n}\n\nconst resultados = Array.isArray(datos.results) ? datos.results : [];\n\nif (resultados.length === 0) {\n    msg.payload = {\n        output: 'No encontré \"' + busqueda.ciudad +\n            '\". Revisá el nombre o probá con \"Ciudad, País\".'\n    };\n    node.status({ fill: \"grey\", shape: \"ring\", text: \"sin resultados\" });\n    return [msg, null];\n}\n\nconst paisBuscado = normalizar(busqueda.pais);\nconst paisEsperado = ALIAS_PAIS[paisBuscado] || paisBuscado;\nconst encontrados = resultados.filter(function (r) {\n    return normalizar(r.country) === paisEsperado ||\n        String(r.country_code || \"\").toLowerCase() ===\n            String(busqueda.pais || \"\").toLowerCase();\n});\n\nlet lugar = encontrados[0];\n\n// Si no se indicó país y la ciudad no está en el país por defecto,\n// usamos el resultado más relevante del mundo. Así funciona también\n// cuando el modelo manda solo \"Madrid\" o \"París\".\nif (!lugar && !busqueda.paisExplicito) {\n    lugar = resultados[0];\n}\n\nif (!lugar) {\n    // Ayudamos a corregir: mostramos dónde sí existe ese nombre.\n    const opciones = resultados.slice(0, 3).map(function (r) {\n        return r.name + \" (\" + r.country + \")\";\n    });\n    msg.payload = {\n        output: 'No encontré \"' + busqueda.ciudad + '\" en ' + busqueda.pais +\n            \". Sí encontré: \" + opciones.join(\", \") +\n            '. Probá con \"Ciudad, País\".'\n    };\n    node.status({ fill: \"grey\", shape: \"ring\", text: \"no está en \" + busqueda.pais });\n    return [msg, null];\n}\n\n// Limpiamos el nombre de la provincia/región para que la frase no quede\n// interminable. Si es igual al nombre de la ciudad, no lo repetimos.\nfunction limpiarAdmin(t) {\n    return String(t || \"\")\n        .replace(/^(Provincia de|Comunidad Autónoma de|Comunidad de|Región de|Estado de|Departamento de)\\s+/i, \"\")\n        .split(\",\")[0]\n        .trim();\n}\nconst admin = limpiarAdmin(lugar.admin1);\nconst detalle = admin && normalizar(admin) !== normalizar(lugar.name) ? \", \" + admin : \"\";\nmsg._lugar = {\n    etiqueta: lugar.name + detalle + \" (\" + lugar.country + \")\"\n};\nmsg.url = \"https://api.open-meteo.com/v1/forecast?latitude=\" + lugar.latitude +\n    \"&longitude=\" + lugar.longitude +\n    \"&current=temperature_2m,apparent_temperature,relative_humidity_2m,\" +\n    \"weather_code,wind_speed_10m,wind_direction_10m\" +\n    \"&daily=temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=1\";\nmsg.requestTimeout = 6000;\n\nnode.status({ fill: \"blue\", shape: \"ring\", text: \"clima de \" + lugar.name });\nreturn [null, msg];\n",
+    "outputs": 2,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 840,
+    "y": 240,
+    "wires": [
+      [
+        "484cb7c346294295"
+      ],
+      [
+        "8792e4bcb72a4517"
+      ]
+    ]
+  },
+  {
+    "id": "8792e4bcb72a4517",
+    "type": "http request",
+    "z": "a3b4bd84f3314c43",
+    "name": "Consultar clima",
+    "method": "GET",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "insecureHTTPParser": false,
+    "authType": "",
+    "senderr": true,
+    "headers": [],
+    "x": 1060,
+    "y": 280,
+    "wires": [
+      [
+        "912aa22575174f7b"
+      ]
+    ]
+  },
+  {
+    "id": "912aa22575174f7b",
+    "type": "function",
+    "z": "a3b4bd84f3314c43",
+    "name": "3. Formatear clima",
+    "func": "// Traducimos el código de clima y armamos una frase simple.\nconst datos = msg.payload || {};\nconst actual = datos.current || {};\nconst diario = datos.daily || {};\n\nif (msg.statusCode && msg.statusCode >= 400) {\n    msg.payload = {\n        output: \"El servicio del clima no está disponible ahora (\" +\n            msg.statusCode + \"). Probá de nuevo en unos minutos.\"\n    };\n    node.status({ fill: \"red\", shape: \"dot\", text: \"servicio \" + msg.statusCode });\n    return msg;\n}\n\nif (typeof actual.temperature_2m !== \"number\") {\n    msg.payload = { output: \"No pude leer el clima de ese lugar. Probá de nuevo en unos minutos.\" };\n    node.status({ fill: \"red\", shape: \"dot\", text: \"sin datos\" });\n    return msg;\n}\n\nconst CIELOS = {\n    0: \"Despejado\",\n    1: \"Mayormente despejado\",\n    2: \"Parcialmente nublado\",\n    3: \"Nublado\",\n    45: \"Niebla\",\n    48: \"Niebla con escarcha\",\n    51: \"Llovizna leve\",\n    53: \"Llovizna\",\n    55: \"Llovizna intensa\",\n    56: \"Llovizna helada\",\n    57: \"Llovizna helada intensa\",\n    61: \"Lluvia leve\",\n    63: \"Lluvia\",\n    65: \"Lluvia intensa\",\n    66: \"Lluvia helada\",\n    67: \"Lluvia helada intensa\",\n    71: \"Nieve leve\",\n    73: \"Nieve\",\n    75: \"Nieve intensa\",\n    77: \"Granos de nieve\",\n    80: \"Chubascos leves\",\n    81: \"Chubascos\",\n    82: \"Chubascos intensos\",\n    85: \"Chubascos de nieve\",\n    86: \"Chubascos de nieve intensos\",\n    95: \"Tormenta\",\n    96: \"Tormenta con granizo\",\n    99: \"Tormenta con granizo intenso\"\n};\n\nconst DIRECCIONES = [\n    \"norte\", \"noreste\", \"este\", \"sudeste\",\n    \"sur\", \"suroeste\", \"oeste\", \"noroeste\"\n];\n\nfunction grados(n) {\n    return Math.round(n) + \" °C\";\n}\n\nconst cielo = CIELOS[actual.weather_code] || \"Sin descripción\";\nlet texto = \"Clima en \" + (msg._lugar ? msg._lugar.etiqueta : \"ese lugar\") +\n    \": \" + cielo + \", \" + grados(actual.temperature_2m);\n\nif (typeof actual.apparent_temperature === \"number\") {\n    texto += \" (sensación \" + grados(actual.apparent_temperature) + \")\";\n}\n\nif (typeof actual.relative_humidity_2m === \"number\") {\n    texto += \". Humedad \" + Math.round(actual.relative_humidity_2m) + \" %\";\n    if (typeof actual.wind_speed_10m === \"number\") {\n        const kmh = Math.round(actual.wind_speed_10m);\n        if (kmh < 1) {\n            texto += \", sin viento apreciable\";\n        } else {\n            const indice = typeof actual.wind_direction_10m === \"number\"\n                ? Math.round(actual.wind_direction_10m / 45) % 8\n                : -1;\n            texto += \", viento \" + kmh + \" km/h\" +\n                (indice >= 0 ? \" del \" + DIRECCIONES[indice] : \"\");\n        }\n    }\n}\n\nif (!/\\.$/.test(texto)) {\n    texto += \".\";\n}\n\nif (Array.isArray(diario.temperature_2m_max) &&\n    Array.isArray(diario.temperature_2m_min) &&\n    typeof diario.temperature_2m_max[0] === \"number\" &&\n    typeof diario.temperature_2m_min[0] === \"number\") {\n    texto += \" Hoy: máxima \" + grados(diario.temperature_2m_max[0]) +\n        \", mínima \" + grados(diario.temperature_2m_min[0]) + \".\";\n}\n\nmsg.payload = { output: texto };\ndelete msg._busqueda;\ndelete msg._lugar;\nnode.status({ fill: \"green\", shape: \"dot\", text: \"listo\" });\nreturn msg;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1290,
+    "y": 280,
+    "wires": [
+      [
+        "484cb7c346294295"
+      ]
+    ]
+  },
+  {
+    "id": "262ebccaaab14a98",
+    "type": "catch",
+    "z": "a3b4bd84f3314c43",
+    "name": "Errores del clima",
+    "scope": [
+      "887e29c03d6c4b29",
+      "8792e4bcb72a4517"
+    ],
+    "uncaught": false,
+    "x": 720,
+    "y": 60,
+    "wires": [
+      [
+        "a20dcdaeda034ac0"
+      ]
+    ]
+  },
+  {
+    "id": "a20dcdaeda034ac0",
+    "type": "function",
+    "z": "a3b4bd84f3314c43",
+    "name": "Responder error",
+    "func": "// Si el servicio no responde (sin internet, timeout), el usuario igual\n// recibe una respuesta clara.\nmsg.payload = {\n    output: \"No pude consultar el clima en este momento. Probá de nuevo en unos minutos.\"\n};\nnode.status({ fill: \"red\", shape: \"dot\", text: \"sin servicio\" });\nreturn msg;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1000,
+    "y": 60,
+    "wires": [
+      [
+        "484cb7c346294295"
+      ]
+    ]
+  },
+  {
+    "id": "b59d01ff1da0449f",
+    "type": "comment",
+    "z": "671bafab882a4047",
+    "name": "Demo: configurá la API key en el nodo LLM",
+    "info": "1. Abrí el nodo 'llm' y cargá tu API key, o definí GROQ_API_KEY.\n2. Hacé Deploy.\n3. Presioná 'Consulta'.\n4. Probá 'Seguimiento' para ver la memoria y 'Nueva conversación' para reiniciar.",
+    "x": 140,
+    "y": 60,
+    "wires": []
+  }
+]

@@ -1,97 +1,105 @@
-# Pendientes antes de publicar
+# Estado y pendientes antes de publicar
 
-Este archivo es una guía de trabajo para el equipo. Resume qué ya está hecho y
-qué falta para dejar el paquete listo para instalar y publicar.
+Este archivo resume el estado del paquete y lo que falta para publicarlo.
 
-## Estado actual
+## Resumen
 
-Ya funciona y está probado:
+El paquete está armado, documentado y probado en una instalación limpia.
+Lo que queda es opcional o propio del momento de publicar en npm.
+
+## Ya está
 
 - Los 5 nodos: `langgraph-start`, `langgraph-llm`, `langgraph-router`,
   `langgraph-tool` y `langgraph-end`.
-- El contrato de `msg.state` y el bucle del grafo con límite de vueltas.
-- Herramientas nativas (el modelo pide la herramienta y el nodo guarda la
-  respuesta como `ToolMessage`), con respaldo para proveedores que no las
-  soportan.
-- La demo del clima con Open-Meteo, sin clave.
+- Herramientas nativas y respaldo para proveedores que no las soportan.
+- Demo del clima con Open-Meteo, sin clave.
 - Memoria entre corridas, opcional por nodo de inicio.
 - Las pestañas 1 a 6 del entorno de desarrollo.
-- Pruebas unitarias de memoria, prueba punta a punta y regresión de las
-  pestañas 1 a 4.
+- README del repositorio y `PENDIENTES.md`.
 
-## Pendiente inmediato
+## Paquete listo
 
-- [ ] Commitear la fase de memoria y el ajuste de red del contenedor.
-      Archivos: `README.md`, `docker-compose.yml`, `lib/state.js`, los cuatro
-      archivos de inicio/fin y `flows.json`.
+Todo esto está dentro de `node-red-contrib-langgraph/`:
 
-## Faltantes del paquete
-
-Todo esto va dentro de `node-red-contrib-langgraph/`:
-
-- [ ] **README propio del paquete.** npm muestra el README que está dentro de la
-      carpeta del paquete, no el de la raíz. Debe explicar instalación, nodos y
-      un ejemplo mínimo.
-- [ ] **LICENSE.** `package.json` declara MIT; falta el archivo de licencia.
-- [ ] **`examples/demo.json`.** Exportar el flujo de ejemplo (pestañas 5 y 6:
-      agente + clima + memoria) en un archivo importable.
-- [ ] **Metadatos en `package.json`.** Autor, repositorio, `engines` y versión
-      `0.1.0` (hoy dice `0.0.1`).
-- [ ] **Definir qué se publica.** Usar `files` o `.npmignore` para no subir
-      pruebas, imágenes internas ni archivos de desarrollo.
-- [ ] **Revisar el nombre en npm.** Confirmar que
-      `node-red-contrib-langgraph` esté libre antes de publicar.
+- [x] **README propio del paquete**, con instalación, nodos, ejemplo y memoria.
+- [x] **LICENSE** con licencia MIT.
+- [x] **`examples/demo.json`** con el agente y la herramienta del clima.
+- [x] **Metadatos**: autor, repositorio, `engines`, versión `0.1.0`.
+- [x] **`files`** para publicar solo lo necesario. La imagen interna ya no entra.
+- [x] **Nombre libre en npm**: `node-red-contrib-langgraph` no existe todavía.
+- [x] **Dependencias compatibles con Node 20**. `@langchain/openai` quedó fijado
+      en `1.5.8` porque las versiones nuevas piden Node 22 y la imagen de
+      Node-RED 4.1.7 usa Node 20.
 
 ## Prueba de instalación limpia
 
-Es el control más importante. Hoy el paquete funciona porque la carpeta está
-montada dentro de Node-RED; hay que comprobar que también funciona instalado.
+Probada con `nodered/node-red:4.1.7` en el puerto 1881:
 
-- [ ] Generar el paquete:
+- [x] `npm pack` genera un paquete de 15 archivos, sin credenciales.
+- [x] Se instala con `npm install` en otra instancia.
+- [x] Aparecen los 5 nodos.
+- [x] El ejemplo se importa y el agente responde.
+- [x] La memoria funciona: consulta, seguimiento y respuesta de otra ciudad.
+- [x] Sin errores en los logs (solo el aviso normal de credenciales vacías).
 
-      ```bash
-      cd node-red-contrib-langgraph
-      npm pack
-      ```
+Para repetir la prueba:
 
-- [ ] Levantar un Node-RED limpio en otro puerto, por ejemplo:
+```bash
+cd node-red-contrib-langgraph
+npm pack
 
-      ```bash
-      docker run -d --name nodered-limpio \
-        -p 1881:1880 nodered/node-red:4.1.7
-      ```
+docker run -d --name nodered_demo_limpio \
+  -p 1881:1880 \
+  --env-file ../.env \
+  -e NODE_OPTIONS=--no-network-family-autoselection \
+  nodered/node-red:4.1.7
 
-- [ ] Instalar el `.tgz` en ese Node-RED limpio, con el directorio de trabajo
-      en `/data`.
-- [ ] Verificar que los 5 nodos aparezcan en la paleta y en `/nodes`.
-- [ ] Importar `examples/demo.json` y probar el agente con el clima.
-- [ ] Revisar los logs: sin errores de registro ni nodos faltantes.
+docker cp node-red-contrib-langgraph-0.1.0.tgz nodered_demo_limpio:/tmp/
+docker exec -w /data nodered_demo_limpio \
+  npm install /tmp/node-red-contrib-langgraph-0.1.0.tgz
+docker restart nodered_demo_limpio
 
-## Detalles a decidir
+curl -X POST http://localhost:1881/flows \
+  -H "Content-Type: application/json" \
+  -H "Node-RED-API-Version: v1" \
+  --data-binary @examples/demo.json
+```
 
-- [ ] **Credenciales en el demo.** El flujo exportado no debe llevar claves,
-      tokens ni ids de esta instancia.
-- [ ] **Pruebas.** Hoy viven en `/tmp` y se pierden. Decidir si se mueven a
-      `test/` dentro del repo.
-- [ ] **Memoria.** Hoy vive en RAM y se pierde al reiniciar Node-RED. Decidir si
-      se queda así (está documentado) o si se agrega `contextStorage`.
-- [ ] **Ajuste de red.** El `docker-compose.yml` usa
-      `--no-network-family-autoselection` porque esta red no tiene IPv6. Es un
-      ajuste del entorno, no del paquete; revisar si se mantiene o se documenta
-      aparte.
+Después, abrir `http://localhost:1881`, revisar que estén los 5 nodos y probar
+los injects del ejemplo.
 
-## Criterio para decir "listo"
+Al terminar:
 
-- [ ] El paquete se instala desde el `.tgz` en un Node-RED limpio.
-- [ ] Los 5 nodos aparecen y el demo funciona.
-- [ ] El README del paquete permite instalarlo y probarlo sin ayuda.
-- [ ] No se publican credenciales ni archivos internos.
-- [ ] La regresión de las pestañas 1 a 6 sigue pasando.
+```bash
+docker rm -f nodered_demo_limpio
+rm node-red-contrib-langgraph-0.1.0.tgz
+```
+
+## Pendiente por decidir
+
+- [ ] **Pruebas en el repo.** Hoy los scripts de prueba viven en `/tmp` y se
+      pierden. Si se quieren conservar, moverlos a `test/`.
+- [ ] **Persistencia de la memoria.** Hoy vive en RAM y se pierde al reiniciar.
+      Se puede dejar así (está documentado) o agregar `contextStorage`.
+- [ ] **Guion de demo para la clase.** El ejemplo ya funciona; falta el paso a
+      paso para presentarlo.
+- [ ] **Publicar en npm.** Requiere `npm login` y después `npm publish` desde la
+      carpeta del paquete.
+
+## Al publicar
+
+```bash
+cd node-red-contrib-langgraph
+npm pack --dry-run      # revisar qué se sube
+npm publish
+npm view node-red-contrib-langgraph version
+```
+
+Después de publicar, crear el tag de la versión en git.
 
 ## Recordatorios
 
 - No commitear `.env`, `flows_cred.json` ni claves reales.
-- Node-RED no recarga nodos en caliente: después de cambiar un `.js` hay que
-  reiniciar el contenedor.
-- Antes de publicar, revisar `npm pack --dry-run` para ver exactamente qué
-  archivos se van a subir.
+- Node-RED no recarga nodos en caliente: reiniciar tras cambiar un `.js`.
+- El `docker-compose.yml` usa `--no-network-family-autoselection` porque esta
+  red no tiene IPv6. Es un ajuste del entorno, no del paquete.

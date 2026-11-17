@@ -1,5 +1,6 @@
 **/node_modules/
 **/.npm
+*.tgz
 .env
 # Datos de runtime y credenciales de Node-RED
 node-red-data/flows_cred.json
