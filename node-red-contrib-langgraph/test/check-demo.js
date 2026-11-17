@@ -165,10 +165,22 @@ async function main() {
         return "/context/flow/" + pestana.id + "/" + encodeURIComponent(claveGuardado);
     }
 
+    // Node-RED devuelve el contexto agrupado por almacén: "memory" cuando usa
+    // el almacén en RAM y "default" cuando settings.js configura
+    // localfilesystem. Buscamos la clave en cualquiera de los dos.
+    function buscarGuardado(datos, clave) {
+        if (!datos || typeof datos !== "object") { return null; }
+        for (const tienda of Object.values(datos)) {
+            if (tienda && typeof tienda === "object" && clave in tienda) {
+                return tienda[clave];
+            }
+        }
+        return null;
+    }
+
     async function leerMemoria() {
         const datos = await pedir("GET", "/context/flow/" + pestana.id);
-        const guardado = datos && datos.memory ? datos.memory[claveGuardado] : null;
-        return desenvuelto(guardado);
+        return desenvuelto(buscarGuardado(datos, claveGuardado));
     }
 
     async function esperar(etiqueta, anterior, condiciones) {

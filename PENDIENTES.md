@@ -86,8 +86,9 @@ Resultado de la última corrida:
 - [ ] **Persistencia de la memoria.** Hoy vive en RAM y se pierde al reiniciar
       Node-RED. Se puede dejar así (está documentado) o agregar
       `contextStorage` con `localfilesystem` en `settings.js`.
-- [ ] **Guion de demo para la clase.** El ejemplo funciona; el paso a paso y la
-      explicación completa están en el markdown que vive fuera del repositorio.
+- [x] **Guion de demo para la clase.** Está en
+      `../GUIA-COMPLETA-NODOS-LANGGRAPH.md`, sección 12, con las capturas en
+      `../guia-langgraph-capturas/`.
 
 ## Cuando haya cuenta en npm
 
